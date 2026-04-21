@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>EasyLog</AssemblyName>
+    <RootNamespace>EasyLog</RootNamespace>
+  </PropertyGroup>
+
+</Project>
