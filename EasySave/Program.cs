@@ -1,16 +1,15 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using EasySave.Localization;
-using EasySave.Services;
-using EasySave.ViewModels;
+using EasySave.Core.Localization;
+using EasySave.Core.Services;
+using EasySave.Core.ViewModels;
 using EasySave.Views;
 
 namespace EasySave
 {
     /// <summary>
-    /// EasySave v1.0 — Entry Point
-    /// 
+    /// EasySave v1.0 — Entry point.
+    ///
     /// Usage:
     ///   EasySave.exe            → Interactive menu mode
     ///   EasySave.exe 1-3        → Execute jobs 1 to 3 (range)
@@ -20,11 +19,11 @@ namespace EasySave
     {
         static void Main(string[] args)
         {
-            // Initialize core services
+            // Initialise core services
             var configService = new ConfigService();
-            var stateService = new StateService();
-            var langManager = new LanguageManager();
-            var viewModel = new BackupViewModel(configService, stateService);
+            var stateService  = new StateService();
+            var langManager   = new LanguageManager();
+            var viewModel     = new BackupViewModel(configService, stateService);
 
             if (args.Length == 0)
             {
@@ -35,8 +34,8 @@ namespace EasySave
             else
             {
                 // ── CLI mode ──────────────────────────────────────────────
-                string arg = args[0].Trim();
-                List<int> indices = ParseIndices(arg, viewModel.Jobs.Count);
+                string       arg     = args[0].Trim();
+                List<int>    indices = ParseIndices(arg, viewModel.Jobs.Count);
 
                 if (indices.Count == 0)
                 {
@@ -76,7 +75,7 @@ namespace EasySave
         }
 
         /// <summary>
-        /// Parses CLI argument into a list of 1-based job indices.
+        /// Parses a CLI argument into a list of 1-based job indices.
         /// Supports "1-3" (range) and "1;3" or "1;2;3" (list).
         /// </summary>
         private static List<int> ParseIndices(string arg, int totalJobs)

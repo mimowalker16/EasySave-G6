@@ -1,20 +1,20 @@
 using System;
 using System.Collections.Generic;
-using EasySave.Models;
-using EasySave.Services;
+using EasySave.Core.Models;
+using EasySave.Core.Services;
 
-namespace EasySave.ViewModels
+namespace EasySave.Core.ViewModels
 {
     /// <summary>
     /// Orchestrates all business logic for backup job management and execution.
-    /// This class is completely independent of the console/view layer.
+    /// This class is completely independent of the console / view layer.
     /// </summary>
     public class BackupViewModel
     {
         private const int MaxJobs = 5;
 
         private readonly ConfigService _configService;
-        private readonly StateService _stateService;
+        private readonly StateService  _stateService;
         private readonly List<BackupState> _states;
 
         /// <summary>The current list of configured backup jobs (max 5).</summary>
@@ -23,10 +23,9 @@ namespace EasySave.ViewModels
         public BackupViewModel(ConfigService configService, StateService stateService)
         {
             _configService = configService;
-            _stateService = stateService;
-            Jobs = _configService.LoadJobs();
+            _stateService  = stateService;
+            Jobs           = _configService.LoadJobs();
 
-            // Synchronize state list with currently loaded jobs
             _states = _stateService.LoadState();
             EnsureStatesMatch();
         }
@@ -35,8 +34,13 @@ namespace EasySave.ViewModels
         // Job Management
         // ──────────────────────────────────────────────────────────────────
 
-        /// <summary>Adds a new backup job. Returns false if max jobs reached or name conflict.</summary>
-        public (bool success, string error) CreateJob(string name, string source, string target, BackupType type)
+        /// <summary>
+        /// Adds a new backup job.
+        /// Returns (false, errorKey) if the maximum number of jobs is reached
+        /// or if the name is invalid / already in use.
+        /// </summary>
+        public (bool Success, string Error) CreateJob(
+            string name, string source, string target, BackupType type)
         {
             if (Jobs.Count >= MaxJobs)
                 return (false, "max_jobs");
@@ -49,10 +53,10 @@ namespace EasySave.ViewModels
 
             var job = new BackupJob
             {
-                Name = name.Trim(),
+                Name            = name.Trim(),
                 SourceDirectory = source.Trim(),
                 TargetDirectory = target.Trim(),
-                Type = type
+                Type            = type
             };
 
             Jobs.Add(job);
@@ -61,32 +65,39 @@ namespace EasySave.ViewModels
             return (true, string.Empty);
         }
 
-        /// <summary>Edits an existing job by index (1-based). Returns false on invalid index.</summary>
-        public (bool success, string error) EditJob(int oneBasedIndex, string name, string source, string target, BackupType type)
+        /// <summary>
+        /// Edits an existing backup job identified by its 1-based index.
+        /// Returns (false, errorKey) on invalid index or name conflict.
+        /// </summary>
+        public (bool Success, string Error) EditJob(
+            int oneBasedIndex, string name, string source, string target, BackupType type)
         {
             int idx = oneBasedIndex - 1;
             if (idx < 0 || idx >= Jobs.Count)
                 return (false, "invalid_index");
 
-            // Check name conflict (excluding self)
+            // Check name conflict, excluding the job being edited
             for (int i = 0; i < Jobs.Count; i++)
             {
                 if (i != idx && Jobs[i].Name.Equals(name, StringComparison.OrdinalIgnoreCase))
                     return (false, "name_exists");
             }
 
-            Jobs[idx].Name = name.Trim();
+            Jobs[idx].Name            = name.Trim();
             Jobs[idx].SourceDirectory = source.Trim();
             Jobs[idx].TargetDirectory = target.Trim();
-            Jobs[idx].Type = type;
+            Jobs[idx].Type            = type;
+            _states[idx].JobName      = name.Trim();
 
-            _states[idx].JobName = name.Trim();
             Persist();
             return (true, string.Empty);
         }
 
-        /// <summary>Deletes a job by 1-based index. Returns false on invalid index.</summary>
-        public (bool success, string error) DeleteJob(int oneBasedIndex)
+        /// <summary>
+        /// Deletes the backup job at the given 1-based index.
+        /// Returns (false, errorKey) on invalid index.
+        /// </summary>
+        public (bool Success, string Error) DeleteJob(int oneBasedIndex)
         {
             int idx = oneBasedIndex - 1;
             if (idx < 0 || idx >= Jobs.Count)
@@ -103,10 +114,10 @@ namespace EasySave.ViewModels
         // ──────────────────────────────────────────────────────────────────
 
         /// <summary>
-        /// Executes a single backup job by 1-based index.
+        /// Executes a single backup job identified by its 1-based index.
         /// </summary>
-        /// <returns>True if successful, false on error.</returns>
-        public (bool success, string error) ExecuteJob(int oneBasedIndex)
+        /// <returns>(true, "") on success; (false, errorKey) on failure.</returns>
+        public (bool Success, string Error) ExecuteJob(int oneBasedIndex)
         {
             int idx = oneBasedIndex - 1;
             if (idx < 0 || idx >= Jobs.Count)
@@ -127,12 +138,11 @@ namespace EasySave.ViewModels
         /// <summary>
         /// Executes all configured backup jobs sequentially.
         /// </summary>
-        public (bool allSuccess, List<string> errors) ExecuteAllJobs()
+        public (bool AllSuccess, List<string> Errors) ExecuteAllJobs()
         {
             bool allOk = true;
             var errors = new List<string>();
-
-            var svc = new BackupService(_stateService, _states);
+            var svc    = new BackupService(_stateService, _states);
 
             for (int i = 0; i < Jobs.Count; i++)
             {
@@ -156,14 +166,14 @@ namespace EasySave.ViewModels
         }
 
         /// <summary>
-        /// Executes a set of jobs specified by 1-based indices.
-        /// Supports CLI inputs like "1-3" or "1;3".
+        /// Executes a set of jobs specified by their 1-based indices.
+        /// Supports CLI inputs parsed as ranges ("1-3") or lists ("1;3").
         /// </summary>
-        public (bool allSuccess, List<string> errors) ExecuteJobs(IEnumerable<int> oneBasedIndices)
+        public (bool AllSuccess, List<string> Errors) ExecuteJobs(IEnumerable<int> oneBasedIndices)
         {
             bool allOk = true;
             var errors = new List<string>();
-            var svc = new BackupService(_stateService, _states);
+            var svc    = new BackupService(_stateService, _states);
 
             foreach (int oneIdx in oneBasedIndices)
             {
@@ -205,7 +215,7 @@ namespace EasySave.ViewModels
         }
 
         /// <summary>
-        /// Synchronizes the in-memory state list to match the current jobs list.
+        /// Synchronizes the in-memory state list so its count matches the jobs list.
         /// </summary>
         private void EnsureStatesMatch()
         {

@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>EasySave.Views</AssemblyName>
+    <RootNamespace>EasySave</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Localization\EasySave.Localization.csproj" />
+    <ProjectReference Include="..\Models\EasySave.Models.csproj" />
+    <ProjectReference Include="..\ViewModels\EasySave.ViewModels.csproj" />
+  </ItemGroup>
+
+</Project>

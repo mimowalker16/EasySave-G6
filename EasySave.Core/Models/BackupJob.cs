@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace EasySave.Models
+namespace EasySave.Core.Models
 {
     /// <summary>
     /// Represents a backup job configuration with source, target, and backup type.

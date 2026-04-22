@@ -1,4 +1,4 @@
-namespace EasySave.Models
+namespace EasySave.Core.Models
 {
     /// <summary>
     /// Represents the current execution state of a backup job.
