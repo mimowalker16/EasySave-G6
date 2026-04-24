@@ -85,7 +85,7 @@ namespace EasySave.Views
                     Console.ForegroundColor = ConsoleColor.Cyan;
                     Console.Write($"  {i + 1} ");
                     Console.ResetColor();
-                    Console.WriteLine($"| {j.Name,-20} | {typeName,-13} | {j.SourceDirectory}");
+                    Console.WriteLine($"| {j.Name,-20} | {typeName,-13} | {j.SourceDirectory,-32}| {j.TargetDirectory}");
                 }
             }
             WaitEnter();

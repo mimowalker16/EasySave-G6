@@ -16,5 +16,14 @@
   </ItemGroup>
 
   <!-- Exclude old sub-project source files that are now part of EasySave.Core -->
+  <!-- Also exclude generated obj/bin files from the legacy Views sub-project to avoid duplicate assembly attributes -->
+  <ItemGroup>
+    <Compile Remove="Localization\**\*.cs" />
+    <Compile Remove="Models\**\*.cs" />
+    <Compile Remove="Services\**\*.cs" />
+    <Compile Remove="ViewModels\**\*.cs" />
+    <Compile Remove="Views\obj\**\*.cs" />
+    <Compile Remove="Views\bin\**\*.cs" />
+  </ItemGroup>
 
 </Project>
