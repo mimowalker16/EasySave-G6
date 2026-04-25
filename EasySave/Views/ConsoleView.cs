@@ -1,14 +1,16 @@
 using System;
 using System.Collections.Generic;
-using EasySave.Localization;
-using EasySave.Models;
-using EasySave.ViewModels;
+using System.IO;
+using EasySave.Core.Localization;
+using EasySave.Core.Models;
+using EasySave.Core.ViewModels;
 
 namespace EasySave.Views
 {
     /// <summary>
     /// Console-based user interface for EasySave.
-    /// Handles all user interaction; delegates logic to BackupViewModel.
+    /// Handles all user interaction; delegates all business logic to <see cref="BackupViewModel"/>.
+    /// No business logic lives here — only display and input.
     /// </summary>
     public class ConsoleView
     {
@@ -17,7 +19,7 @@ namespace EasySave.Views
 
         public ConsoleView(BackupViewModel vm, LanguageManager lang)
         {
-            _vm = vm;
+            _vm   = vm;
             _lang = lang;
         }
 
@@ -33,16 +35,16 @@ namespace EasySave.Views
 
                 string choice = Prompt(_lang.Get("prompt_choice")).Trim();
 
-                Console.Clear();
+                TryClear();
 
                 switch (choice)
                 {
-                    case "1": ShowJobs(); break;
-                    case "2": CreateJob(); break;
-                    case "3": EditJob(); break;
-                    case "4": DeleteJob(); break;
-                    case "5": ExecuteOne(); break;
-                    case "6": ExecuteAll(); break;
+                    case "1": ShowJobs();       break;
+                    case "2": CreateJob();      break;
+                    case "3": EditJob();        break;
+                    case "4": DeleteJob();      break;
+                    case "5": ExecuteOne();     break;
+                    case "6": ExecuteAll();     break;
                     case "7": ChangeLanguage(); break;
                     case "8":
                         PrintBye();
@@ -75,15 +77,15 @@ namespace EasySave.Views
 
                 for (int i = 0; i < _vm.Jobs.Count; i++)
                 {
-                    var j = _vm.Jobs[i];
-                    string typeName = j.Type == BackupType.Full
+                    BackupJob j        = _vm.Jobs[i];
+                    string    typeName = j.Type == BackupType.Full
                         ? _lang.Get("label_full")
                         : _lang.Get("label_differential");
 
                     Console.ForegroundColor = ConsoleColor.Cyan;
                     Console.Write($"  {i + 1} ");
                     Console.ResetColor();
-                    Console.WriteLine($"| {j.Name,-20} | {typeName,-13} | {j.SourceDirectory}");
+                    Console.WriteLine($"| {j.Name,-20} | {typeName,-13} | {j.SourceDirectory,-32}| {j.TargetDirectory}");
                 }
             }
             WaitEnter();
@@ -93,10 +95,10 @@ namespace EasySave.Views
         {
             PrintSectionTitle("[ CREATE JOB ]");
 
-            string name = Prompt(_lang.Get("prompt_job_name"));
-            string source = Prompt(_lang.Get("prompt_source"));
-            string target = Prompt(_lang.Get("prompt_target"));
-            BackupType type = PromptBackupType();
+            string     name   = Prompt(_lang.Get("prompt_job_name"));
+            string     source = Prompt(_lang.Get("prompt_source"));
+            string     target = Prompt(_lang.Get("prompt_target"));
+            BackupType type   = PromptBackupType();
 
             var (success, error) = _vm.CreateJob(name, source, target, type);
             if (success)
@@ -116,15 +118,15 @@ namespace EasySave.Views
             int idx = PromptIndex();
             if (idx < 1) { WaitEnter(); return; }
 
-            var existing = _vm.Jobs[idx - 1];
+            BackupJob existing = _vm.Jobs[idx - 1];
             Console.WriteLine($"  Editing: {existing.Name}");
-            Console.WriteLine($"  (Leave blank to keep current value)");
+            Console.WriteLine("  (Leave blank to keep current value)");
             Console.WriteLine();
 
-            string name = PromptOrKeep(_lang.Get("prompt_job_name"), existing.Name);
-            string source = PromptOrKeep(_lang.Get("prompt_source"), existing.SourceDirectory);
-            string target = PromptOrKeep(_lang.Get("prompt_target"), existing.TargetDirectory);
-            BackupType type = PromptBackupTypeOrKeep(existing.Type);
+            string     name   = PromptOrKeep(_lang.Get("prompt_job_name"), existing.Name);
+            string     source = PromptOrKeep(_lang.Get("prompt_source"),   existing.SourceDirectory);
+            string     target = PromptOrKeep(_lang.Get("prompt_target"),   existing.TargetDirectory);
+            BackupType type   = PromptBackupTypeOrKeep(existing.Type);
 
             var (success, error) = _vm.EditJob(idx, name, source, target, type);
             if (success)
@@ -229,9 +231,14 @@ namespace EasySave.Views
         // UI Helpers
         // ──────────────────────────────────────────────────────────────────
 
+        private static void TryClear()
+        {
+            try { Console.Clear(); } catch (IOException) { /* Non-interactive terminal — skip clear */ }
+        }
+
         private void PrintHeader()
         {
-            Console.Clear();
+            TryClear();
             Console.ForegroundColor = ConsoleColor.Blue;
             Console.WriteLine("╔══════════════════════════════════════════════════════════╗");
             Console.WriteLine("║         ███████╗ █████╗ ███████╗██╗   ██╗               ║");
@@ -330,11 +337,15 @@ namespace EasySave.Views
 
         private BackupType PromptBackupTypeOrKeep(BackupType current)
         {
-            string currentLabel = current == BackupType.Full ? _lang.Get("label_full") : _lang.Get("label_differential");
+            string currentLabel = current == BackupType.Full
+                ? _lang.Get("label_full")
+                : _lang.Get("label_differential");
+
             string t = PromptOrKeep(_lang.Get("prompt_type"), currentLabel);
+
             if (t == "2" || t.Equals("differential", StringComparison.OrdinalIgnoreCase))
                 return BackupType.Differential;
-            if (t == "1" || t.Equals("full", StringComparison.OrdinalIgnoreCase))
+            if (t == "1" || t.Equals("full",          StringComparison.OrdinalIgnoreCase))
                 return BackupType.Full;
             return current;
         }
@@ -353,10 +364,11 @@ namespace EasySave.Views
         {
             for (int i = 0; i < _vm.Jobs.Count; i++)
             {
-                var j = _vm.Jobs[i];
-                string typeName = j.Type == BackupType.Full
+                BackupJob j        = _vm.Jobs[i];
+                string    typeName = j.Type == BackupType.Full
                     ? _lang.Get("label_full")
                     : _lang.Get("label_differential");
+
                 Console.ForegroundColor = ConsoleColor.Cyan;
                 Console.Write($"  {i + 1}. ");
                 Console.ResetColor();
@@ -374,11 +386,11 @@ namespace EasySave.Views
 
         private string TranslateError(string error) => error switch
         {
-            "max_jobs" => _lang.Get("label_max_jobs"),
-            "name_empty" => _lang.Get("label_name_empty"),
-            "name_exists" => _lang.Get("label_name_exists"),
+            "max_jobs"      => _lang.Get("label_max_jobs"),
+            "name_empty"    => _lang.Get("label_name_empty"),
+            "name_exists"   => _lang.Get("label_name_exists"),
             "invalid_index" => _lang.Get("label_invalid_index"),
-            _ => error
+            _               => error
         };
     }
 }

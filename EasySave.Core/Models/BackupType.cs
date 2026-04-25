@@ -1,4 +1,4 @@
-namespace EasySave.Models
+namespace EasySave.Core.Models
 {
     /// <summary>
     /// Defines the type of backup operation.

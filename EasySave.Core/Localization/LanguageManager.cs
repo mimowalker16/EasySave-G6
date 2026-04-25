@@ -4,18 +4,21 @@ using System.IO;
 using System.Reflection;
 using System.Text.Json;
 
-namespace EasySave.Localization
+namespace EasySave.Core.Localization
 {
     /// <summary>
     /// Loads and serves localized UI strings from JSON language files.
-    /// Default language is English. Switch dynamically via SetLanguage().
+    /// Default language is English. Switch dynamically via <see cref="SetLanguage"/>.
+    /// Language files (en.json, fr.json) are expected alongside the executable,
+    /// in a subfolder named "Localization".
     /// </summary>
     public class LanguageManager
     {
         private Dictionary<string, string> _strings = new();
 
         private static readonly string LocalizationDirectory = Path.Combine(
-            Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? AppDomain.CurrentDomain.BaseDirectory,
+            Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)
+                ?? AppDomain.CurrentDomain.BaseDirectory,
             "Localization");
 
         /// <summary>Currently active language code ("en" or "fr").</summary>
@@ -38,7 +41,7 @@ namespace EasySave.Localization
 
         /// <summary>
         /// Returns the localized string for the given key.
-        /// Falls back to the key itself if not found.
+        /// Falls back to the key itself if the key is not found.
         /// </summary>
         public string Get(string key)
         {
@@ -51,7 +54,7 @@ namespace EasySave.Localization
         public string Get(string key, params object[] args)
         {
             string template = Get(key);
-            try { return string.Format(template, args); }
+            try   { return string.Format(template, args); }
             catch { return template; }
         }
 
@@ -62,10 +65,7 @@ namespace EasySave.Localization
             string filePath = Path.Combine(LocalizationDirectory, $"{languageCode}.json");
 
             if (!File.Exists(filePath))
-            {
-                // Fallback to English if file not found
-                filePath = Path.Combine(LocalizationDirectory, "en.json");
-            }
+                filePath = Path.Combine(LocalizationDirectory, "en.json"); // Fallback to English
 
             if (!File.Exists(filePath))
             {

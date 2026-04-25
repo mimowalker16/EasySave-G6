@@ -7,23 +7,23 @@
     <Nullable>enable</Nullable>
     <AssemblyName>EasySave</AssemblyName>
     <RootNamespace>EasySave</RootNamespace>
-    <ApplicationIcon />
     <StartupObject>EasySave.Program</StartupObject>
   </PropertyGroup>
 
-  <!-- Reference to EasyLog DLL project -->
   <ItemGroup>
-    <ProjectReference Include="..\EasyLog\EasyLog.csproj" />
+    <!-- Single reference to the Core library -->
+    <ProjectReference Include="..\EasySave.Core\EasySave.Core.csproj" />
   </ItemGroup>
 
-  <!-- Localization JSON files: copy to output directory -->
+  <!-- Exclude old sub-project source files that are now part of EasySave.Core -->
+  <!-- Also exclude generated obj/bin files from the legacy Views sub-project to avoid duplicate assembly attributes -->
   <ItemGroup>
-    <Content Include="Localization\en.json">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="Localization\fr.json">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
+    <Compile Remove="Localization\**\*.cs" />
+    <Compile Remove="Models\**\*.cs" />
+    <Compile Remove="Services\**\*.cs" />
+    <Compile Remove="ViewModels\**\*.cs" />
+    <Compile Remove="Views\obj\**\*.cs" />
+    <Compile Remove="Views\bin\**\*.cs" />
   </ItemGroup>
 
 </Project>

@@ -2,9 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
-using EasySave.Models;
+using EasySave.Core.Models;
 
-namespace EasySave.Services
+namespace EasySave.Core.Services
 {
     /// <summary>
     /// Manages the real-time state file for all backup jobs.
@@ -31,7 +31,8 @@ namespace EasySave.Services
         }
 
         /// <summary>
-        /// Updates the state entry for a single job and rewrites the full state file.
+        /// Rewrites the complete state file with the current list of job states.
+        /// Thread-safe: protected by an internal lock.
         /// </summary>
         /// <param name="allStates">The complete list of current job states.</param>
         public void UpdateState(List<BackupState> allStates)
@@ -44,7 +45,8 @@ namespace EasySave.Services
         }
 
         /// <summary>
-        /// Loads the current state from file. Returns an empty list if not found.
+        /// Loads the current state from file.
+        /// Returns an empty list if the file does not exist or cannot be parsed.
         /// </summary>
         public List<BackupState> LoadState()
         {

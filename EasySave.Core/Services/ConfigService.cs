@@ -2,9 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
-using EasySave.Models;
+using EasySave.Core.Models;
 
-namespace EasySave.Services
+namespace EasySave.Core.Services
 {
     /// <summary>
     /// Handles persistence of backup job configurations.

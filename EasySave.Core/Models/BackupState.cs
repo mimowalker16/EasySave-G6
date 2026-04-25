@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace EasySave.Models
+namespace EasySave.Core.Models
 {
     /// <summary>
     /// Represents the real-time execution state of a backup job.
