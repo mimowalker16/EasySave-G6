@@ -27,41 +27,50 @@ Dans le cadre de l'évolution de son catalogue, ProSoft a commandé le développ
 
 ```
 logiciel/
-├── EasySave/                    ← Application console principale
-│   ├── Program.cs               ← Point d'entrée (Main)
+├── EasySave/                         ← Application console principale
+│   ├── Program.cs                    ← Point d'entrée (Main)
+│   ├── EasySave.csproj
+│   └── Views/
+│       └── ConsoleView.cs            ← Interface utilisateur console
+│
+├── EasySave.Core/                    ← Bibliothèque de logique métier (projet séparé)
+│   ├── EasySave.Core.csproj
 │   ├── Models/
-│   │   ├── BackupJob.cs         ← Configuration d'un travail de sauvegarde
-│   │   ├── BackupState.cs       ← État en temps réel d'un job
-│   │   ├── BackupType.cs        ← Enum : Full / Differential
-│   │   └── BackupStateType.cs   ← Enum : Inactive / Active / End
+│   │   ├── BackupJob.cs              ← Configuration d'un travail de sauvegarde
+│   │   ├── BackupState.cs            ← État en temps réel d'un job
+│   │   ├── BackupType.cs             ← Enum : Full / Differential
+│   │   └── BackupStateType.cs        ← Enum : Inactive / Active / End
 │   ├── Services/
-│   │   ├── BackupService.cs     ← Moteur de copie de fichiers
-│   │   ├── ConfigService.cs     ← Persistance des jobs (jobs.json)
-│   │   └── StateService.cs      ← Suivi d'état en temps réel (state.json)
+│   │   ├── BackupService.cs          ← Moteur de copie de fichiers
+│   │   ├── ConfigService.cs          ← Persistance des jobs (jobs.json)
+│   │   └── StateService.cs           ← Suivi d'état en temps réel (state.json)
+│   ├── Strategies/
+│   │   ├── IBackupStrategy.cs        ← Interface du pattern Strategy
+│   │   ├── CompleteBackup.cs         ← Stratégie sauvegarde complète
+│   │   └── DifferentialBackup.cs     ← Stratégie sauvegarde différentielle
 │   ├── ViewModels/
-│   │   └── BackupViewModel.cs   ← Chef d'orchestre MVVM (logique métier)
-│   ├── Views/
-│   │   └── ConsoleView.cs       ← Interface utilisateur console
+│   │   └── BackupViewModel.cs        ← Chef d'orchestre MVVM (logique métier)
 │   └── Localization/
-│       ├── LanguageManager.cs   ← Gestionnaire de traduction
-│       ├── en.json              ← Textes en anglais
-│       └── fr.json              ← Textes en français
+│       ├── LanguageManager.cs        ← Gestionnaire de traduction
+│       ├── en.json                   ← Textes en anglais
+│       └── fr.json                   ← Textes en français
 │
-├── EasyLog/                     ← Bibliothèque DLL de logs (projet séparé)
-│   └── Logger.cs                ← Logger JSON thread-safe
+├── EasyLog/                          ← Bibliothèque DLL de logs (projet séparé)
+│   ├── Logger.cs                     ← Logger JSON thread-safe
+│   └── EasyLog.csproj
 │
-├── TestData/                    ← Dossiers de test fournis
-│   ├── Source1/                 ← Dossier source pour les tests
+├── TestData/                         ← Dossiers de test fournis
+│   ├── Source1/                      ← Dossier source pour les tests
 │   ├── Source2/
-│   ├── Target1/                 ← Dossier cible pour les tests
+│   ├── Target1/                      ← Dossier cible pour les tests
 │   └── Target2/
 │
-├── docs/                        ← Documentation
-│   ├── user_manual.md           ← Manuel utilisateur
-│   └── uml/                     ← Diagrammes UML (PlantUML)
+├── docs/                             ← Documentation
+│   ├── user_manual.md                ← Manuel utilisateur
+│   └── uml/                          ← Diagrammes UML (PlantUML)
 │
-├── EasySave.slnx                ← Fichier solution Visual Studio
-└── README.md                    ← Ce fichier
+├── EasySave.slnx                     ← Fichier solution Visual Studio
+└── README.md                         ← Ce fichier
 ```
 
 ---
@@ -86,8 +95,9 @@ Dans le panneau **Explorateur de solutions** (à droite), tu dois voir :
 
 ```
 📁 Solution 'EasySave'
-   ├── 📁 EasySave        ← application principale
-   └── 📁 EasyLog         ← bibliothèque de logs (DLL)
+   ├── 📁 EasySave          ← application console (point d'entrée)
+   ├── 📁 EasySave.Core     ← logique métier (modèles, services, stratégies)
+   └── 📁 EasyLog           ← bibliothèque de logs (DLL)
 ```
 
 ### Étape 3 — Définir le projet de démarrage
@@ -285,15 +295,17 @@ Après les tests, contrôle les fichiers suivants :
 Utilisateur
     │
     ▼
-ConsoleView.cs          ← Affichage uniquement (pas de logique)
+ConsoleView.cs              ← Affichage uniquement (pas de logique)
     │ appelle
     ▼
-BackupViewModel.cs      ← Logique métier, orchestration
+BackupViewModel.cs          ← Logique métier, orchestration
     │ utilise
-    ├──▶ ConfigService.cs    → Sauvegarde des jobs (jobs.json)
-    ├──▶ StateService.cs     → Suivi d'état (state.json)
-    └──▶ BackupService.cs    → Copie des fichiers
-                │ utilise
+    ├──▶ ConfigService.cs       → Sauvegarde des jobs (jobs.json)
+    ├──▶ StateService.cs        → Suivi d'état (state.json)
+    └──▶ BackupService.cs       → Copie des fichiers
+                │ utilise (Strategy pattern)
+                ├──▶ CompleteBackup.cs       → Copie tous les fichiers
+                ├──▶ DifferentialBackup.cs   → Copie les fichiers modifiés
                 └──▶ Logger.cs (EasyLog DLL) → Logs JSON journaliers
 ```
 
