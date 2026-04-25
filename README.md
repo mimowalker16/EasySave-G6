@@ -5,7 +5,7 @@
 
 ---
 
-## 📋 Contexte du projet
+## Contexte du projet
 
 ProSoft est un éditeur de logiciels spécialisé dans les solutions de gestion pour les PME.  
 Dans le cadre de l'évolution de son catalogue, ProSoft a commandé le développement d'un logiciel de sauvegarde professionnel nommé **EasySave**.
@@ -23,7 +23,7 @@ Dans le cadre de l'évolution de son catalogue, ProSoft a commandé le développ
 
 ---
 
-## 🗂️ Structure du projet
+## Structure du projet
 
 ```
 logiciel/
@@ -66,7 +66,7 @@ logiciel/
 
 ---
 
-## 🚀 Lancer le projet depuis Visual Studio
+## Lancer le projet depuis Visual Studio
 
 ### Prérequis
 
@@ -85,10 +85,10 @@ logiciel/
 Dans le panneau **Explorateur de solutions** (à droite), tu dois voir :
 
 ```
-📁 Solution 'EasySave'
-   ├── 📁 EasyLog           ← DLL logs
-   └── 📁 EasySave          ← application console
-   └── 📁 EasySave.Core     ← logique métier
+Solution 'EasySave'
+   ├── EasyLog           ← DLL logs
+   └── EasySave          ← application console
+   └── EasySave.Core     ← logique métier
 ```
 
 ### Étape 3 — Définir le projet de démarrage
@@ -103,7 +103,7 @@ Dans le panneau **Explorateur de solutions** (à droite), tu dois voir :
 | Lancer **avec** débogage | `F5` |
 | Lancer **sans** débogage | `Ctrl + F5` |
 
-> ✅ La fenêtre console s'ouvre avec le menu ASCII d'EasySave.
+> La fenêtre console s'ouvre avec le menu ASCII d'EasySave.
 
 ### Étape 5 — (Si nécessaire) Restaurer les packages NuGet
 
@@ -113,7 +113,7 @@ Ou : **clic droit sur la Solution** → `Restaurer les packages NuGet`
 
 ---
 
-## 🖥️ Utilisation — Les 8 options du menu
+## Utilisation — Les 8 options du menu
 
 ```
 ╔══════════════════════════════════════════════════════════╗
@@ -157,7 +157,7 @@ Crée un nouveau job de sauvegarde. L'application pose **4 questions** :
 | **Target directory** | Chemin complet du dossier **de destination** | `C:\Users\DELL\Desktop\logiciel\TestData\Target1` |
 | **Type (1=Full / 2=Differential)** | Type de sauvegarde | `1` ou `2` |
 
-#### 🔵 Source Directory — Qu'est-ce que c'est ?
+#### Source Directory — Qu'est-ce que c'est ?
 
 C'est le **dossier que tu veux sauvegarder** (la source). Il doit obligatoirement **exister** sur ton PC ou réseau. Tous les fichiers qu'il contient seront copiés vers la destination.
 
@@ -166,7 +166,7 @@ Exemples réels :
 - `C:\Projet\MonCode` → sauvegarde un projet
 - `C:\Users\DELL\Desktop\logiciel\TestData\Source1` → pour les tests
 
-#### 🟢 Target Directory — Qu'est-ce que c'est ?
+#### Target Directory — Qu'est-ce que c'est ?
 
 C'est **l'endroit où les fichiers seront copiés** (la destination). Ce dossier sera créé automatiquement s'il n'existe pas.
 
@@ -182,7 +182,7 @@ Exemples réels :
 | **Full (Complète)** | Copie **tous** les fichiers, à chaque exécution |
 | **Differential (Différentielle)** | Copie uniquement les fichiers **nouveaux ou modifiés** depuis la dernière sauvegarde |
 
-> ⚠️ Maximum **5 jobs** autorisés. Les noms doivent être uniques.
+> Maximum **5 jobs** autorisés. Les noms doivent être uniques.
 
 ---
 
@@ -239,7 +239,7 @@ Ferme l'application proprement.
 
 ---
 
-## 🧪 Guide de test rapide
+## Guide de test rapide
 
 ### Prérequis : créer des fichiers de test
 
@@ -280,7 +280,7 @@ Après les tests, contrôle les fichiers suivants :
 
 ---
 
-## 🏗️ Architecture MVVM
+## Architecture MVVM
 
 ```
 Utilisateur
@@ -300,7 +300,7 @@ BackupViewModel.cs      ← Logique métier, orchestration
 
 ---
 
-## 💻 Lancer en ligne de commande (mode CLI)
+## Lancer en ligne de commande (mode CLI)
 
 En plus du mode interactif, l'application supporte un mode CLI direct :
 
@@ -317,7 +317,7 @@ En plus du mode interactif, l'application supporte un mode CLI direct :
 
 ---
 
-## 📦 Technologies utilisées
+## Technologies utilisées
 
 | Technologie | Version | Usage |
 |-------------|---------|-------|
@@ -328,7 +328,7 @@ En plus du mode interactif, l'application supporte un mode CLI direct :
 
 ---
 
-## 👥 Équipe de développement
+## Équipe de développement
 
 Projet développé par l'équipe de développement CESI pour le compte de **ProSoft**.
 
