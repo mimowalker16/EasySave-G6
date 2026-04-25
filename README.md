@@ -86,8 +86,9 @@ Dans le panneau **Explorateur de solutions** (à droite), tu dois voir :
 
 ```
 📁 Solution 'EasySave'
-   ├── 📁 EasySave        ← application principale
-   └── 📁 EasyLog         ← bibliothèque de logs (DLL)
+   ├── 📁 EasyLog           ← DLL logs
+   └── 📁 EasySave          ← application console
+   └── 📁 EasySave.Core     ← logique métier
 ```
 
 ### Étape 3 — Définir le projet de démarrage
