@@ -3,12 +3,14 @@ using System.Collections.Generic;
 using System.IO;
 using EasySave.Core.Localization;
 using EasySave.Core.Models;
+using EasySave.Core.Services;
 using EasySave.Core.ViewModels;
+using EasyLog;
 
 namespace EasySave.Views
 {
     /// <summary>
-    /// Console-based user interface for EasySave.
+    /// Console-based user interface for EasySave v1.1.
     /// Handles all user interaction; delegates all business logic to <see cref="BackupViewModel"/>.
     /// No business logic lives here — only display and input.
     /// </summary>
@@ -34,7 +36,6 @@ namespace EasySave.Views
                 PrintMenu();
 
                 string choice = Prompt(_lang.Get("prompt_choice")).Trim();
-
                 TryClear();
 
                 switch (choice)
@@ -46,7 +47,8 @@ namespace EasySave.Views
                     case "5": ExecuteOne();     break;
                     case "6": ExecuteAll();     break;
                     case "7": ChangeLanguage(); break;
-                    case "8":
+                    case "8": ShowSettings();   break;
+                    case "9":
                         PrintBye();
                         return;
                     default:
@@ -57,9 +59,9 @@ namespace EasySave.Views
             }
         }
 
-        // ──────────────────────────────────────────────────────────────────
+        // ──────────────────────────────────────────────────────────────────────
         // Menu actions
-        // ──────────────────────────────────────────────────────────────────
+        // ──────────────────────────────────────────────────────────────────────
 
         private void ShowJobs()
         {
@@ -227,13 +229,44 @@ namespace EasySave.Views
             WaitEnter();
         }
 
-        // ──────────────────────────────────────────────────────────────────
+        private void ShowSettings()
+        {
+            PrintSectionTitle(_lang.Get("label_settings_title"));
+
+            // Current log format
+            string currentFormat = _vm.Settings.LogFormat == LogFormat.Json ? "JSON" : "XML";
+            PrintInfo(_lang.Get("label_current_log_format", currentFormat));
+
+            // Choose new format
+            Console.WriteLine(_lang.Get("prompt_log_format"));
+            string formatChoice = Prompt("> ").Trim();
+            LogFormat newFormat = formatChoice == "2" ? LogFormat.Xml : LogFormat.Json;
+
+            // Business software name
+            string businessSoftware = PromptOrKeep(
+                _lang.Get("label_business_software"),
+                _vm.Settings.BusinessSoftwareName);
+
+            // Apply settings
+            var updated = new AppSettings
+            {
+                LogFormat            = newFormat,
+                EncryptedExtensions  = _vm.Settings.EncryptedExtensions,
+                BusinessSoftwareName = businessSoftware.Trim()
+            };
+
+            _vm.UpdateSettings(updated);
+            PrintSuccess(_lang.Get("label_log_format_changed"));
+            WaitEnter();
+        }
+
+        // ──────────────────────────────────────────────────────────────────────
         // UI Helpers
-        // ──────────────────────────────────────────────────────────────────
+        // ──────────────────────────────────────────────────────────────────────
 
         private static void TryClear()
         {
-            try { Console.Clear(); } catch (IOException) { /* Non-interactive terminal — skip clear */ }
+            try { Console.Clear(); } catch (IOException) { /* Non-interactive terminal — skip */ }
         }
 
         private void PrintHeader()
@@ -246,7 +279,7 @@ namespace EasySave.Views
             Console.WriteLine("║         █████╗  ███████║███████╗ ╚████╔╝                ║");
             Console.WriteLine("║         ██╔══╝  ██╔══██║╚════██║  ╚██╔╝                 ║");
             Console.WriteLine("║         ███████╗██║  ██║███████║   ██║                  ║");
-            Console.WriteLine("║         ╚══════╝╚═╝  ╚═╝╚══════╝   ╚═╝  v1.0           ║");
+            Console.WriteLine("║         ╚══════╝╚═╝  ╚═╝╚══════╝   ╚═╝  v1.1           ║");
             Console.WriteLine("╠══════════════════════════════════════════════════════════╣");
             Console.ResetColor();
         }
@@ -259,7 +292,8 @@ namespace EasySave.Views
             Console.WriteLine("╠══════════════════════════════════════════════════════════╣");
             Console.ResetColor();
 
-            string[] keys = { "menu_1", "menu_2", "menu_3", "menu_4", "menu_5", "menu_6", "menu_7", "menu_8" };
+            string[] keys = { "menu_1", "menu_2", "menu_3", "menu_4",
+                               "menu_5", "menu_6", "menu_7", "menu_8", "menu_9" };
             foreach (string key in keys)
                 Console.WriteLine($"║  {_lang.Get(key),-56}║");
 
@@ -345,7 +379,7 @@ namespace EasySave.Views
 
             if (t == "2" || t.Equals("differential", StringComparison.OrdinalIgnoreCase))
                 return BackupType.Differential;
-            if (t == "1" || t.Equals("full",          StringComparison.OrdinalIgnoreCase))
+            if (t == "1" || t.Equals("full", StringComparison.OrdinalIgnoreCase))
                 return BackupType.Full;
             return current;
         }

@@ -2,37 +2,78 @@ using System;
 using System.Collections.Generic;
 using EasySave.Core.Models;
 using EasySave.Core.Services;
+using EasyLog;
 
 namespace EasySave.Core.ViewModels
 {
     /// <summary>
     /// Orchestrates all business logic for backup job management and execution.
-    /// This class is completely independent of the console / view layer.
+    /// Completely independent of the UI layer (console or WPF).
+    /// Receives dependencies via constructor injection for testability.
     /// </summary>
     public class BackupViewModel
     {
-        private const int MaxJobs = 5;
+        /// <summary>
+        /// Maximum number of jobs allowed (v1.x only).
+        /// Set to 0 or negative to allow unlimited jobs (v2.0 behaviour).
+        /// </summary>
+        private readonly int _maxJobs;
 
-        private readonly ConfigService _configService;
-        private readonly StateService  _stateService;
-        private readonly List<BackupState> _states;
+        private readonly ConfigService          _configService;
+        private readonly StateService           _stateService;
+        private readonly SettingsService        _settingsService;
+        private readonly BusinessSoftwareService _businessSoftware;
+        private readonly List<BackupState>      _states;
+        private          ILogger                _logger;
 
-        /// <summary>The current list of configured backup jobs (max 5).</summary>
+        /// <summary>The current list of configured backup jobs.</summary>
         public List<BackupJob> Jobs { get; private set; }
 
-        public BackupViewModel(ConfigService configService, StateService stateService)
+        /// <summary>Currently loaded application settings.</summary>
+        public AppSettings Settings { get; private set; }
+
+        /// <param name="maxJobs">
+        /// Maximum allowed jobs. Use 5 for v1.x console, 0 for unlimited v2.0.
+        /// </param>
+        public BackupViewModel(
+            ConfigService           configService,
+            StateService            stateService,
+            SettingsService         settingsService,
+            BusinessSoftwareService businessSoftware,
+            int                     maxJobs = 5)
         {
-            _configService = configService;
-            _stateService  = stateService;
-            Jobs           = _configService.LoadJobs();
+            _configService    = configService;
+            _stateService     = stateService;
+            _settingsService  = settingsService;
+            _businessSoftware = businessSoftware;
+            _maxJobs          = maxJobs;
+
+            Jobs     = _configService.LoadJobs();
+            Settings = _settingsService.Load();
+            _logger  = LoggerFactory.Create(Settings.LogFormat);
 
             _states = _stateService.LoadState();
             EnsureStatesMatch();
         }
 
-        // ──────────────────────────────────────────────────────────────────
+        // ──────────────────────────────────────────────────────────────────────
+        // Settings
+        // ──────────────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Updates and persists global settings.
+        /// Also refreshes the logger if the log format changed.
+        /// </summary>
+        public void UpdateSettings(AppSettings settings)
+        {
+            Settings = settings;
+            _settingsService.Save(settings);
+            _logger = LoggerFactory.Create(settings.LogFormat);
+        }
+
+        // ──────────────────────────────────────────────────────────────────────
         // Job Management
-        // ──────────────────────────────────────────────────────────────────
+        // ──────────────────────────────────────────────────────────────────────
 
         /// <summary>
         /// Adds a new backup job.
@@ -42,7 +83,7 @@ namespace EasySave.Core.ViewModels
         public (bool Success, string Error) CreateJob(
             string name, string source, string target, BackupType type)
         {
-            if (Jobs.Count >= MaxJobs)
+            if (_maxJobs > 0 && Jobs.Count >= _maxJobs)
                 return (false, "max_jobs");
 
             if (string.IsNullOrWhiteSpace(name))
@@ -76,7 +117,6 @@ namespace EasySave.Core.ViewModels
             if (idx < 0 || idx >= Jobs.Count)
                 return (false, "invalid_index");
 
-            // Check name conflict, excluding the job being edited
             for (int i = 0; i < Jobs.Count; i++)
             {
                 if (i != idx && Jobs[i].Name.Equals(name, StringComparison.OrdinalIgnoreCase))
@@ -109,24 +149,23 @@ namespace EasySave.Core.ViewModels
             return (true, string.Empty);
         }
 
-        // ──────────────────────────────────────────────────────────────────
+        // ──────────────────────────────────────────────────────────────────────
         // Execution
-        // ──────────────────────────────────────────────────────────────────
+        // ──────────────────────────────────────────────────────────────────────
 
         /// <summary>
         /// Executes a single backup job identified by its 1-based index.
         /// </summary>
-        /// <returns>(true, "") on success; (false, errorKey) on failure.</returns>
         public (bool Success, string Error) ExecuteJob(int oneBasedIndex)
         {
             int idx = oneBasedIndex - 1;
             if (idx < 0 || idx >= Jobs.Count)
                 return (false, "invalid_index");
 
-            var svc = new BackupService(_stateService, _states);
+            var svc = CreateBackupService();
             try
             {
-                bool ok = svc.Execute(Jobs[idx], idx);
+                bool ok = svc.Execute(Jobs[idx], idx, Settings);
                 return (ok, ok ? string.Empty : "errors");
             }
             catch (Exception ex)
@@ -135,31 +174,21 @@ namespace EasySave.Core.ViewModels
             }
         }
 
-        /// <summary>
-        /// Executes all configured backup jobs sequentially.
-        /// </summary>
+        /// <summary>Executes all configured backup jobs sequentially.</summary>
         public (bool AllSuccess, List<string> Errors) ExecuteAllJobs()
         {
             bool allOk = true;
-            var errors = new List<string>();
-            var svc    = new BackupService(_stateService, _states);
+            var  errors = new List<string>();
+            var  svc    = CreateBackupService();
 
             for (int i = 0; i < Jobs.Count; i++)
             {
                 try
                 {
-                    bool ok = svc.Execute(Jobs[i], i);
-                    if (!ok)
-                    {
-                        allOk = false;
-                        errors.Add($"{Jobs[i].Name}: completed with errors");
-                    }
+                    bool ok = svc.Execute(Jobs[i], i, Settings);
+                    if (!ok) { allOk = false; errors.Add($"{Jobs[i].Name}: completed with errors"); }
                 }
-                catch (Exception ex)
-                {
-                    allOk = false;
-                    errors.Add($"{Jobs[i].Name}: {ex.Message}");
-                }
+                catch (Exception ex) { allOk = false; errors.Add($"{Jobs[i].Name}: {ex.Message}"); }
             }
 
             return (allOk, errors);
@@ -172,8 +201,8 @@ namespace EasySave.Core.ViewModels
         public (bool AllSuccess, List<string> Errors) ExecuteJobs(IEnumerable<int> oneBasedIndices)
         {
             bool allOk = true;
-            var errors = new List<string>();
-            var svc    = new BackupService(_stateService, _states);
+            var  errors = new List<string>();
+            var  svc    = CreateBackupService();
 
             foreach (int oneIdx in oneBasedIndices)
             {
@@ -187,26 +216,21 @@ namespace EasySave.Core.ViewModels
 
                 try
                 {
-                    bool ok = svc.Execute(Jobs[idx], idx);
-                    if (!ok)
-                    {
-                        allOk = false;
-                        errors.Add($"{Jobs[idx].Name}: completed with errors");
-                    }
+                    bool ok = svc.Execute(Jobs[idx], idx, Settings);
+                    if (!ok) { allOk = false; errors.Add($"{Jobs[idx].Name}: completed with errors"); }
                 }
-                catch (Exception ex)
-                {
-                    allOk = false;
-                    errors.Add($"{Jobs[idx].Name}: {ex.Message}");
-                }
+                catch (Exception ex) { allOk = false; errors.Add($"{Jobs[idx].Name}: {ex.Message}"); }
             }
 
             return (allOk, errors);
         }
 
-        // ──────────────────────────────────────────────────────────────────
+        // ──────────────────────────────────────────────────────────────────────
         // Private helpers
-        // ──────────────────────────────────────────────────────────────────
+        // ──────────────────────────────────────────────────────────────────────
+
+        private BackupService CreateBackupService() =>
+            new BackupService(_stateService, _states, _logger, _businessSoftware);
 
         private void Persist()
         {
@@ -214,9 +238,6 @@ namespace EasySave.Core.ViewModels
             _stateService.UpdateState(_states);
         }
 
-        /// <summary>
-        /// Synchronizes the in-memory state list so its count matches the jobs list.
-        /// </summary>
         private void EnsureStatesMatch()
         {
             while (_states.Count < Jobs.Count)

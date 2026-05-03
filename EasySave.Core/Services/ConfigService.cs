@@ -20,14 +20,18 @@ namespace EasySave.Core.Services
             WriteIndented = true
         };
 
-        public ConfigService()
-        {
-            _configDirectory = Path.Combine(
+        /// <summary>Production constructor — uses %APPDATA%\EasySave\Config\.</summary>
+        public ConfigService() : this(
+            Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                "EasySave", "Config");
+                "EasySave", "Config"))
+        { }
 
+        /// <summary>Test constructor — uses the provided directory.</summary>
+        public ConfigService(string configDirectory)
+        {
+            _configDirectory = configDirectory;
             _configFile = Path.Combine(_configDirectory, "jobs.json");
-
             Directory.CreateDirectory(_configDirectory);
         }
 

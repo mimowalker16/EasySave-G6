@@ -1,4 +1,4 @@
-# EasySave v1.0 — Logiciel de sauvegarde
+# EasySave — Logiciel de sauvegarde
 
 > Projet réalisé dans le cadre d'une mission pour **ProSoft** par l'équipe de développement CESI.  
 > Application console .NET 8.0 implémentant l'architecture **MVVM** avec une bibliothèque de logs dédiée (**EasyLog**).
@@ -17,7 +17,7 @@ Dans le cadre de l'évolution de son catalogue, ProSoft a commandé le développ
 - Module de logs **séparé** sous forme de DLL (`EasyLog`)
 - Logs journaliers au format **JSON**
 - Suivi d'état en **temps réel** (fichier `state.json`)
-- Support **multi-langue** : Français 🇫🇷 et Anglais 🇬🇧
+- Support **multi-langue** : Français et Anglais
 - Maximum **5 travaux de sauvegarde** configurables
 - Types de sauvegarde : **Complète** et **Différentielle**
 
@@ -25,44 +25,71 @@ Dans le cadre de l'évolution de son catalogue, ProSoft a commandé le développ
 
 ## Structure du projet
 
+La solution contient **4 projets** distincts :
+
+| Projet | Type | Role |
+|--------|------|------|
+| `EasySave` | Executable console | Version 1 : interface en ligne de commande |
+| `EasySave.GUI` | Executable WPF | Version 2 : interface graphique Windows |
+| `EasySave.Core` | Bibliotheque DLL | Logique metier partagee entre les deux versions |
+| `EasyLog` | Bibliotheque DLL | Module de logs JSON, independant et reutilisable |
+
 ```
 logiciel/
-├── EasySave/                    ← Application console principale
-│   ├── Program.cs               ← Point d'entrée (Main)
+├── EasySave/                    <- Application console (version 1)
+│   ├── Program.cs               <- Point d'entree (Main)
+│   └── Views/
+│       └── ConsoleView.cs       <- Interface utilisateur console
+│
+├── EasySave.GUI/                <- Application WPF (version 2)
+│   ├── App.xaml                 <- Styles et ressources globales
+│   ├── MainWindow.xaml          <- Fenetre principale
+│   └── ViewModels/
+│       └── MainViewModel.cs     <- ViewModel de la fenetre WPF
+│
+├── EasySave.Core/               <- Logique metier partagee (DLL)
 │   ├── Models/
-│   │   ├── BackupJob.cs         ← Configuration d'un travail de sauvegarde
-│   │   ├── BackupState.cs       ← État en temps réel d'un job
-│   │   ├── BackupType.cs        ← Enum : Full / Differential
-│   │   └── BackupStateType.cs   ← Enum : Inactive / Active / End
+│   │   ├── BackupJob.cs         <- Configuration d'un travail de sauvegarde
+│   │   ├── BackupState.cs       <- Etat en temps reel d'un job
+│   │   ├── BackupType.cs        <- Enum : Full / Differential
+│   │   └── BackupStateType.cs   <- Enum : Inactive / Active / End
 │   ├── Services/
-│   │   ├── BackupService.cs     ← Moteur de copie de fichiers
-│   │   ├── ConfigService.cs     ← Persistance des jobs (jobs.json)
-│   │   └── StateService.cs      ← Suivi d'état en temps réel (state.json)
+│   │   ├── BackupService.cs     <- Moteur de copie de fichiers
+│   │   ├── ConfigService.cs     <- Persistance des jobs (jobs.json)
+│   │   ├── StateService.cs      <- Suivi d'etat en temps reel (state.json)
+│   │   ├── SettingsService.cs   <- Persistance des parametres (settings.json)
+│   │   └── BusinessSoftwareService.cs <- Detection logiciel metier actif
 │   ├── ViewModels/
-│   │   └── BackupViewModel.cs   ← Chef d'orchestre MVVM (logique métier)
-│   ├── Views/
-│   │   └── ConsoleView.cs       ← Interface utilisateur console
+│   │   └── BackupViewModel.cs   <- Chef d'orchestre MVVM (logique metier)
 │   └── Localization/
-│       ├── LanguageManager.cs   ← Gestionnaire de traduction
-│       ├── en.json              ← Textes en anglais
-│       └── fr.json              ← Textes en français
+│       ├── LanguageManager.cs   <- Gestionnaire de traduction
+│       ├── en.json              <- Textes en anglais
+│       └── fr.json              <- Textes en francais
 │
-├── EasyLog/                     ← Bibliothèque DLL de logs (projet séparé)
-│   └── Logger.cs                ← Logger JSON thread-safe
+├── EasyLog/                     <- Bibliotheque DLL de logs (projet separe)
+│   └── Logger.cs                <- Logger JSON/XML thread-safe
 │
-├── TestData/                    ← Dossiers de test fournis
-│   ├── Source1/                 ← Dossier source pour les tests
+├── TestData/                    <- Dossiers de test fournis
+│   ├── Source1/                 <- Dossier source pour les tests
 │   ├── Source2/
-│   ├── Target1/                 ← Dossier cible pour les tests
+│   ├── Target1/                 <- Dossier cible pour les tests
 │   └── Target2/
 │
-├── docs/                        ← Documentation
-│   ├── user_manual.md           ← Manuel utilisateur
-│   └── uml/                     ← Diagrammes UML (PlantUML)
-│
-├── EasySave.slnx                ← Fichier solution Visual Studio
-└── README.md                    ← Ce fichier
+├── EasySave.slnx                <- Fichier solution Visual Studio
+└── README.md                    <- Ce fichier
 ```
+
+### Dependances entre projets
+
+```
+EasySave (Console)          EasySave.GUI (WPF)
+        |                           |
+        +-------- EasySave.Core ----+
+                        |
+                    EasyLog (DLL)
+```
+
+Les deux applications executables reposent sur le meme moteur (`EasySave.Core`). Aucune logique metier n'est dupliquee entre la version console et la version graphique.
 
 ---
 
@@ -80,32 +107,37 @@ logiciel/
 3. Navigue jusqu'à : `C:\Users\DELL\Desktop\logiciel`
 4. Sélectionne le fichier **`EasySave.slnx`** → clique **Ouvrir**
 
-### Étape 2 — Vérifier l'Explorateur de solutions
+### Etape 2 — Verifier l'Explorateur de solutions
 
-Dans le panneau **Explorateur de solutions** (à droite), tu dois voir :
+Dans le panneau **Explorateur de solutions** (a droite), tu dois voir :
 
 ```
 Solution 'EasySave'
-   ├── EasyLog           ← DLL logs
-   └── EasySave          ← application console
-   └── EasySave.Core     ← logique métier
+   ├── EasyLog           <- DLL logs
+   ├── EasySave.Core     <- logique metier partagee
+   ├── EasySave          <- application console (version 1)
+   └── EasySave.GUI      <- application graphique WPF (version 2)
 ```
 
-### Étape 3 — Définir le projet de démarrage
+### Etape 3 — Definir le projet de demarrage
 
-- Fais un **clic droit** sur le projet **`EasySave`**
-- Clique sur **"Définir comme projet de démarrage"**
+Pour lancer la **version console** :
+- Clic droit sur le projet **`EasySave`** → **"Definir comme projet de demarrage"**
 
-### Étape 4 — Lancer l'application
+Pour lancer la **version graphique** :
+- Clic droit sur le projet **`EasySave.GUI`** → **"Definir comme projet de demarrage"**
+
+### Etape 4 — Lancer l'application
 
 | Action | Raccourci |
 |--------|-----------|
-| Lancer **avec** débogage | `F5` |
-| Lancer **sans** débogage | `Ctrl + F5` |
+| Lancer **avec** debogage | `F5` |
+| Lancer **sans** debogage | `Ctrl + F5` |
 
-> La fenêtre console s'ouvre avec le menu ASCII d'EasySave.
+- La version **console** ouvre un terminal avec le menu ASCII d'EasySave.
+- La version **graphique** ouvre une fenetre Windows avec l'interface dark mode.
 
-### Étape 5 — (Si nécessaire) Restaurer les packages NuGet
+### Etape 5 — (Si necessaire) Restaurer les packages NuGet
 
 Si Visual Studio signale des erreurs de packages au premier lancement :  
 **Menu** → `Outils` → `Gestionnaire de packages NuGet` → `Restaurer les packages NuGet`  
@@ -300,30 +332,53 @@ BackupViewModel.cs      ← Logique métier, orchestration
 
 ---
 
-## Lancer en ligne de commande (mode CLI)
+## Lancer via la ligne de commande (dotnet run)
 
-En plus du mode interactif, l'application supporte un mode CLI direct :
+### Version console
 
 ```powershell
-# Exécuter le job n°1
-.\EasySave.exe 1
+# Depuis la racine du projet
+cd C:\Users\DELL\Desktop\logiciel
 
-# Exécuter les jobs 1 à 3 (plage)
-.\EasySave.exe 1-3
+# Lancer le menu interactif
+dotnet run --project EasySave
 
-# Exécuter les jobs 1 et 3 (sélection)
-.\EasySave.exe 1;3
+# Mode CLI direct : executer le job n°1
+dotnet run --project EasySave -- 1
+
+# Mode CLI direct : executer les jobs 1 a 3 (plage)
+dotnet run --project EasySave -- 1-3
+
+# Mode CLI direct : executer les jobs 1 et 3 (selection)
+dotnet run --project EasySave -- 1;3
+```
+
+### Version graphique (WPF)
+
+```powershell
+# Depuis la racine du projet
+cd C:\Users\DELL\Desktop\logiciel
+
+# Lancer l'interface graphique
+dotnet run --project EasySave.GUI
+```
+
+### Compiler toute la solution
+
+```powershell
+dotnet build EasySave.slnx
 ```
 
 ---
 
-## Technologies utilisées
+## Technologies utilisees
 
 | Technologie | Version | Usage |
 |-------------|---------|-------|
 | C# | 12.0 | Langage principal |
 | .NET | 8.0 | Framework |
-| System.Text.Json | Intégré | Sérialisation JSON |
+| WPF | .NET 8.0-windows | Interface graphique (version 2) |
+| System.Text.Json | Integre | Serialisation JSON |
 | PlantUML | — | Diagrammes UML |
 
 ---
@@ -334,4 +389,4 @@ Projet développé par l'équipe de développement CESI pour le compte de **ProS
 
 ---
 
-*EasySave v1.0 — © ProSoft*
+*EasySave — © ProSoft*
