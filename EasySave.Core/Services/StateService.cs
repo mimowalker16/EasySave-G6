@@ -20,12 +20,16 @@ namespace EasySave.Core.Services
             WriteIndented = true
         };
 
-        public StateService()
-        {
-            string stateDirectory = Path.Combine(
+        /// <summary>Production constructor — uses %APPDATA%\EasySave\.</summary>
+        public StateService() : this(
+            Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                "EasySave");
+                "EasySave"))
+        { }
 
+        /// <summary>Test constructor — uses the provided directory.</summary>
+        public StateService(string stateDirectory)
+        {
             Directory.CreateDirectory(stateDirectory);
             _stateFile = Path.Combine(stateDirectory, "state.json");
         }

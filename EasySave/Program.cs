@@ -8,7 +8,7 @@ using EasySave.Views;
 namespace EasySave
 {
     /// <summary>
-    /// EasySave v1.0 — Entry point.
+    /// EasySave v1.1 — Entry point.
     ///
     /// Usage:
     ///   EasySave.exe            → Interactive menu mode
@@ -19,11 +19,19 @@ namespace EasySave
     {
         static void Main(string[] args)
         {
-            // Initialise core services
-            var configService = new ConfigService();
-            var stateService  = new StateService();
-            var langManager   = new LanguageManager();
-            var viewModel     = new BackupViewModel(configService, stateService);
+            // Initialise core services (v1.1 keeps the 5-job limit)
+            var configService    = new ConfigService();
+            var stateService     = new StateService();
+            var settingsService  = new SettingsService();
+            var businessSoftware = new BusinessSoftwareService();
+            var langManager      = new LanguageManager();
+
+            var viewModel = new BackupViewModel(
+                configService,
+                stateService,
+                settingsService,
+                businessSoftware,
+                maxJobs: 5);
 
             if (args.Length == 0)
             {
@@ -34,8 +42,8 @@ namespace EasySave
             else
             {
                 // ── CLI mode ──────────────────────────────────────────────
-                string       arg     = args[0].Trim();
-                List<int>    indices = ParseIndices(arg, viewModel.Jobs.Count);
+                string    arg     = args[0].Trim();
+                List<int> indices = ParseIndices(arg, viewModel.Jobs.Count);
 
                 if (indices.Count == 0)
                 {
@@ -47,7 +55,7 @@ namespace EasySave
                 }
 
                 Console.ForegroundColor = ConsoleColor.Blue;
-                Console.WriteLine($"EasySave v1.0 — Executing {indices.Count} job(s)...\n");
+                Console.WriteLine($"EasySave v1.1 — Executing {indices.Count} job(s)...\n");
                 Console.ResetColor();
 
                 var (allOk, errors) = viewModel.ExecuteJobs(indices);
@@ -82,7 +90,6 @@ namespace EasySave
         {
             var result = new List<int>();
 
-            // Range: "1-3"
             if (arg.Contains('-'))
             {
                 string[] parts = arg.Split('-');
@@ -97,18 +104,14 @@ namespace EasySave
                 return result;
             }
 
-            // Semicolon-separated list: "1;3"
             if (arg.Contains(';'))
             {
                 foreach (string part in arg.Split(';'))
-                {
                     if (int.TryParse(part.Trim(), out int idx) && idx >= 1 && idx <= totalJobs)
                         result.Add(idx);
-                }
                 return result;
             }
 
-            // Single index
             if (int.TryParse(arg, out int single) && single >= 1 && single <= totalJobs)
                 result.Add(single);
 
