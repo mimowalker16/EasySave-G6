@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "EasyLog": {
+      "commandName": "Project"
+    },
+    "Profil 1": {
+      "commandName": "Executable"
+    }
+  }
+}

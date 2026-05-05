@@ -1,0 +1,8 @@
+<Solution>
+  <Project Path="EasyLog/EasyLog.csproj" />
+  <Project Path="EasySave.Core/EasySave.Core.csproj" />
+  <Project Path="EasySave/EasySave.csproj" />
+  <Project Path="EasySave.GUI/EasySave.GUI.csproj" />
+  <Project Path="CryptoSoft/CryptoSoft.csproj" />
+  <Project Path="EasySave.Tests/EasySave.Tests.csproj" />
+</Solution>

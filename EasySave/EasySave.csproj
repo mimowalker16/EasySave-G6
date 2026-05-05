@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>EasySave</AssemblyName>
+    <RootNamespace>EasySave</RootNamespace>
+    <StartupObject>EasySave.Program</StartupObject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Single reference to the Core library -->
+    <ProjectReference Include="..\EasySave.Core\EasySave.Core.csproj" />
+    <!-- Ensures CryptoSoft.exe is produced before copying into this output -->
+    <ProjectReference Include="..\CryptoSoft\CryptoSoft.csproj" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <!-- Exclude old sub-project source files that are now part of EasySave.Core -->
+  <!-- Also exclude generated obj/bin files from the legacy Views sub-project to avoid duplicate assembly attributes -->
+  <ItemGroup>
+    <Compile Remove="Localization\**\*.cs" />
+    <Compile Remove="Models\**\*.cs" />
+    <Compile Remove="Services\**\*.cs" />
+    <Compile Remove="ViewModels\**\*.cs" />
+    <Compile Remove="Views\obj\**\*.cs" />
+    <Compile Remove="Views\bin\**\*.cs" />
+  </ItemGroup>
+
+  <Target Name="CopyCryptoSoftExe" AfterTargets="Build">
+    <PropertyGroup>
+      <CryptoSoftExe>$(MSBuildThisFileDirectory)..\CryptoSoft\bin\$(Configuration)\net8.0\CryptoSoft.exe</CryptoSoftExe>
+    </PropertyGroup>
+    <Copy SourceFiles="$(CryptoSoftExe)" DestinationFolder="$(OutDir)"
+          SkipUnchangedFiles="true" Condition="Exists('$(CryptoSoftExe)')" />
+  </Target>
+
+</Project>
