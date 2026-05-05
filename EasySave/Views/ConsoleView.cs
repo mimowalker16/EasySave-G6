@@ -178,8 +178,10 @@ namespace EasySave.Views
                 PrintSuccess(_lang.Get("label_done"));
             else if (error == "errors")
                 PrintWarning(_lang.Get("label_done_errors"));
+            else if (error == "cancelled")
+                PrintWarning(_lang.Get("label_cancelled"));
             else
-                PrintError(error);
+                PrintError(TranslateError(error));
 
             WaitEnter();
         }
@@ -197,9 +199,10 @@ namespace EasySave.Views
                 PrintSuccess(_lang.Get("label_done"));
             else
             {
-                PrintWarning(_lang.Get("label_done_errors"));
+                bool anyCancel = errors.Exists(s => s.Contains("cancelled", StringComparison.OrdinalIgnoreCase));
+                PrintWarning(anyCancel ? _lang.Get("label_cancelled") : _lang.Get("label_done_errors"));
                 foreach (string e in errors)
-                    PrintError($"  • {e}");
+                    PrintError($"  • {TranslateError(e)}");
             }
 
             WaitEnter();
@@ -242,6 +245,12 @@ namespace EasySave.Views
             string formatChoice = Prompt("> ").Trim();
             LogFormat newFormat = formatChoice == "2" ? LogFormat.Xml : LogFormat.Json;
 
+            string logDir = PromptOrKeep(_lang.Get("prompt_log_directory"), _vm.Settings.LogDirectory);
+
+            Console.WriteLine(_lang.Get("prompt_json_layout"));
+            string layoutChoice = Prompt("> ").Trim();
+            JsonLogLayout jsonLayout = layoutChoice == "2" ? JsonLogLayout.Ndjson : JsonLogLayout.PrettyArray;
+
             // Business software name
             string businessSoftware = PromptOrKeep(
                 _lang.Get("label_business_software"),
@@ -251,6 +260,8 @@ namespace EasySave.Views
             var updated = new AppSettings
             {
                 LogFormat            = newFormat,
+                LogDirectory         = string.IsNullOrWhiteSpace(logDir) ? string.Empty : logDir.Trim(),
+                JsonLogLayout        = jsonLayout,
                 EncryptedExtensions  = _vm.Settings.EncryptedExtensions,
                 BusinessSoftwareName = businessSoftware.Trim()
             };
@@ -418,13 +429,31 @@ namespace EasySave.Views
             Console.ReadLine();
         }
 
-        private string TranslateError(string error) => error switch
+        private string TranslateError(string error)
         {
-            "max_jobs"      => _lang.Get("label_max_jobs"),
-            "name_empty"    => _lang.Get("label_name_empty"),
-            "name_exists"   => _lang.Get("label_name_exists"),
-            "invalid_index" => _lang.Get("label_invalid_index"),
-            _               => error
-        };
+            if (error.Contains(':'))
+            {
+                int idx = error.IndexOf(':');
+                string head = error[..idx].Trim();
+                string tail = error[(idx + 1)..].Trim();
+                return $"{head}: {TranslateError(tail)}";
+            }
+
+            return error switch
+            {
+                "max_jobs"                  => _lang.Get("label_max_jobs"),
+                "name_empty"                => _lang.Get("label_name_empty"),
+                "name_exists"               => _lang.Get("label_name_exists"),
+                "invalid_index"             => _lang.Get("label_invalid_index"),
+                "execution_busy"            => _lang.Get("label_execution_busy"),
+                "cancelled"                 => _lang.Get("label_cancelled"),
+                "preflight_source_empty"    => _lang.Get("label_preflight_source_empty"),
+                "preflight_source_missing"  => _lang.Get("label_preflight_source_missing"),
+                "preflight_target_empty"    => _lang.Get("label_preflight_target_empty"),
+                "preflight_target_denied"   => _lang.Get("label_preflight_target_denied"),
+                "preflight_target_io"       => _lang.Get("label_preflight_target_io"),
+                _                           => error
+            };
+        }
     }
 }

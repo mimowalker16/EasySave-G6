@@ -8,9 +8,7 @@ using EasyLog;
 namespace EasySave.Core.Services
 {
     /// <summary>
-    /// Persists global application settings:
-    /// log format (JSON/XML), encrypted file extensions, and business software name.
-    /// Settings are saved to %APPDATA%\EasySave\Config\settings.json.
+    /// Persists global application settings to %APPDATA%\EasySave\Config\settings.json.
     /// </summary>
     public class SettingsService
     {
@@ -63,16 +61,23 @@ namespace EasySave.Core.Services
         public LogFormat LogFormat { get; set; } = LogFormat.Json;
 
         /// <summary>
+        /// Custom root directory for daily logs. Empty = default under %AppData%\EasySave\Logs.
+        /// Environment variables (e.g. %ProgramData%) are expanded when applied.
+        /// </summary>
+        [JsonPropertyName("LogDirectory")]
+        public string LogDirectory { get; set; } = string.Empty;
+
+        /// <summary>How JSON logs are stored when <see cref="LogFormat"/> is <see cref="LogFormat.Json"/>.</summary>
+        [JsonPropertyName("JsonLogLayout")]
+        public JsonLogLayout JsonLogLayout { get; set; } = JsonLogLayout.PrettyArray;
+
+        /// <summary>
         /// File extensions that should be encrypted via CryptoSoft (e.g. ".txt", ".docx").
-        /// Empty list = no encryption.
         /// </summary>
         [JsonPropertyName("EncryptedExtensions")]
         public List<string> EncryptedExtensions { get; set; } = new();
 
-        /// <summary>
-        /// Process name of the business software that blocks backup execution.
-        /// Empty = no blocking.
-        /// </summary>
+        /// <summary>Process name of the business software that blocks backup execution.</summary>
         [JsonPropertyName("BusinessSoftwareName")]
         public string BusinessSoftwareName { get; set; } = string.Empty;
     }

@@ -81,6 +81,22 @@ namespace EasySave.Tests
             // Should gracefully fall back to defaults
             Assert.Equal(LogFormat.Json, settings.LogFormat);
         }
+
+        [Fact]
+        public void Save_ThenLoad_RoundTripsLogDirectoryAndNdjsonLayout()
+        {
+            var original = new AppSettings
+            {
+                LogDirectory  = @"D:\CompanyLogs\EasySave",
+                JsonLogLayout = JsonLogLayout.Ndjson,
+                LogFormat     = LogFormat.Json
+            };
+            _svc.Save(original);
+
+            var loaded = _svc.Load();
+            Assert.Equal(@"D:\CompanyLogs\EasySave", loaded.LogDirectory);
+            Assert.Equal(JsonLogLayout.Ndjson, loaded.JsonLogLayout);
+        }
     }
 
     /// <summary>

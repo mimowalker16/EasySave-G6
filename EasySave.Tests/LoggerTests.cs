@@ -113,6 +113,22 @@ namespace EasySave.Tests
             Assert.IsType<XmlLogger>(logger);
         }
 
+        [Fact]
+        public void JsonLogger_Ndjson_AppendsOneLinePerEntry()
+        {
+            var logger = new JsonLogger(_tempDir, JsonLogLayout.Ndjson);
+            logger.LogTransfer("J1", @"C:\a.txt", @"D:\a.txt", 10, 5, 0);
+            logger.LogTransfer("J2", @"C:\b.txt", @"D:\b.txt", 11, 6, 0);
+
+            string[] files = Directory.GetFiles(_tempDir, "*.ndjson");
+            Assert.Single(files);
+            string[] lines = File.ReadAllText(files[0]).Split(
+                new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+            Assert.Equal(2, lines.Length);
+            Assert.Contains("J1", lines[0]);
+            Assert.Contains("J2", lines[1]);
+        }
+
         // ── Helpers ──────────────────────────────────────────────────────────
 
         private static int CountOccurrences(string haystack, string needle)

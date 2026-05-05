@@ -7,8 +7,7 @@ using EasySave.Core.Models;
 namespace EasySave.Core.Services
 {
     /// <summary>
-    /// Manages the real-time state file for all backup jobs.
-    /// State is written to %APPDATA%\EasySave\state.json after every file operation.
+    /// Manages the real-time state file for all backup jobs (atomic writes).
     /// </summary>
     public class StateService
     {
@@ -34,24 +33,37 @@ namespace EasySave.Core.Services
             _stateFile = Path.Combine(stateDirectory, "state.json");
         }
 
-        /// <summary>
-        /// Rewrites the complete state file with the current list of job states.
-        /// Thread-safe: protected by an internal lock.
-        /// </summary>
-        /// <param name="allStates">The complete list of current job states.</param>
+        /// <summary>Rewrites the complete state file with the current list of job states.</summary>
         public void UpdateState(List<BackupState> allStates)
         {
             lock (_lock)
             {
                 string json = JsonSerializer.Serialize(allStates, _jsonOptions);
-                File.WriteAllText(_stateFile, json);
+                string? dir = Path.GetDirectoryName(_stateFile);
+                if (!string.IsNullOrEmpty(dir))
+                    Directory.CreateDirectory(dir);
+
+                string tempPath = Path.Combine(
+                    dir ?? ".",
+                    $".state.{Guid.NewGuid():N}.tmp");
+
+                try
+                {
+                    File.WriteAllText(tempPath, json);
+                    File.Move(tempPath, _stateFile, overwrite: true);
+                }
+                finally
+                {
+                    if (File.Exists(tempPath))
+                    {
+                        try { File.Delete(tempPath); }
+                        catch { /* best-effort */ }
+                    }
+                }
             }
         }
 
-        /// <summary>
-        /// Loads the current state from file.
-        /// Returns an empty list if the file does not exist or cannot be parsed.
-        /// </summary>
+        /// <summary>Loads the current state from file.</summary>
         public List<BackupState> LoadState()
         {
             if (!File.Exists(_stateFile))

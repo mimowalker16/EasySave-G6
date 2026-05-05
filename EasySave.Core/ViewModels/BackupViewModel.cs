@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using EasySave.Core.Models;
 using EasySave.Core.Services;
 using EasyLog;
@@ -7,34 +8,25 @@ using EasyLog;
 namespace EasySave.Core.ViewModels
 {
     /// <summary>
-    /// Orchestrates all business logic for backup job management and execution.
-    /// Completely independent of the UI layer (console or WPF).
-    /// Receives dependencies via constructor injection for testability.
+    /// Orchestrates backup job management and execution (preflight, single-flight gate, cancellation).
     /// </summary>
     public class BackupViewModel
     {
-        /// <summary>
-        /// Maximum number of jobs allowed (v1.x only).
-        /// Set to 0 or negative to allow unlimited jobs (v2.0 behaviour).
-        /// </summary>
+        private static readonly SemaphoreSlim ExecutionGate = new(1, 1);
+
         private readonly int _maxJobs;
 
-        private readonly ConfigService          _configService;
-        private readonly StateService           _stateService;
-        private readonly SettingsService        _settingsService;
+        private readonly ConfigService           _configService;
+        private readonly StateService            _stateService;
+        private readonly SettingsService         _settingsService;
         private readonly BusinessSoftwareService _businessSoftware;
-        private readonly List<BackupState>      _states;
-        private          ILogger                _logger;
+        private readonly List<BackupState>       _states;
+        private ILogger _logger = null!;
 
-        /// <summary>The current list of configured backup jobs.</summary>
         public List<BackupJob> Jobs { get; private set; }
 
-        /// <summary>Currently loaded application settings.</summary>
         public AppSettings Settings { get; private set; }
 
-        /// <param name="maxJobs">
-        /// Maximum allowed jobs. Use 5 for v1.x console, 0 for unlimited v2.0.
-        /// </param>
         public BackupViewModel(
             ConfigService           configService,
             StateService            stateService,
@@ -50,36 +42,29 @@ namespace EasySave.Core.ViewModels
 
             Jobs     = _configService.LoadJobs();
             Settings = _settingsService.Load();
-            _logger  = LoggerFactory.Create(Settings.LogFormat);
+            RebuildLogger();
 
             _states = _stateService.LoadState();
             EnsureStatesMatch();
         }
 
-        // ──────────────────────────────────────────────────────────────────────
-        // Settings
-        // ──────────────────────────────────────────────────────────────────────
+        private void RebuildLogger()
+        {
+            _logger = LoggerFactory.Create(Settings.LogFormat, new LoggerOptions
+            {
+                LogDirectory   = Settings.LogDirectory,
+                JsonLogLayout  = Settings.JsonLogLayout
+            });
+        }
 
-        /// <summary>
-        /// Updates and persists global settings.
-        /// Also refreshes the logger if the log format changed.
-        /// </summary>
+        /// <summary>Updates and persists global settings and rebuilds the log writer.</summary>
         public void UpdateSettings(AppSettings settings)
         {
             Settings = settings;
             _settingsService.Save(settings);
-            _logger = LoggerFactory.Create(settings.LogFormat);
+            RebuildLogger();
         }
 
-        // ──────────────────────────────────────────────────────────────────────
-        // Job Management
-        // ──────────────────────────────────────────────────────────────────────
-
-        /// <summary>
-        /// Adds a new backup job.
-        /// Returns (false, errorKey) if the maximum number of jobs is reached
-        /// or if the name is invalid / already in use.
-        /// </summary>
         public (bool Success, string Error) CreateJob(
             string name, string source, string target, BackupType type)
         {
@@ -106,10 +91,6 @@ namespace EasySave.Core.ViewModels
             return (true, string.Empty);
         }
 
-        /// <summary>
-        /// Edits an existing backup job identified by its 1-based index.
-        /// Returns (false, errorKey) on invalid index or name conflict.
-        /// </summary>
         public (bool Success, string Error) EditJob(
             int oneBasedIndex, string name, string source, string target, BackupType type)
         {
@@ -123,20 +104,16 @@ namespace EasySave.Core.ViewModels
                     return (false, "name_exists");
             }
 
-            Jobs[idx].Name            = name.Trim();
-            Jobs[idx].SourceDirectory = source.Trim();
-            Jobs[idx].TargetDirectory = target.Trim();
-            Jobs[idx].Type            = type;
-            _states[idx].JobName      = name.Trim();
+            Jobs[idx].Name             = name.Trim();
+            Jobs[idx].SourceDirectory  = source.Trim();
+            Jobs[idx].TargetDirectory  = target.Trim();
+            Jobs[idx].Type             = type;
+            _states[idx].JobName       = name.Trim();
 
             Persist();
             return (true, string.Empty);
         }
 
-        /// <summary>
-        /// Deletes the backup job at the given 1-based index.
-        /// Returns (false, errorKey) on invalid index.
-        /// </summary>
         public (bool Success, string Error) DeleteJob(int oneBasedIndex)
         {
             int idx = oneBasedIndex - 1;
@@ -149,60 +126,107 @@ namespace EasySave.Core.ViewModels
             return (true, string.Empty);
         }
 
-        // ──────────────────────────────────────────────────────────────────────
-        // Execution
-        // ──────────────────────────────────────────────────────────────────────
-
-        /// <summary>
-        /// Executes a single backup job identified by its 1-based index.
-        /// </summary>
-        public (bool Success, string Error) ExecuteJob(int oneBasedIndex)
+        /// <summary>Runs one job (exclusive gate, pre-flight checks).</summary>
+        public (bool Success, string Error) ExecuteJob(
+            int oneBasedIndex,
+            CancellationToken cancellationToken = default)
         {
             int idx = oneBasedIndex - 1;
             if (idx < 0 || idx >= Jobs.Count)
                 return (false, "invalid_index");
 
-            var svc = CreateBackupService();
+            BackupPreflight.Result pf = BackupPreflight.Validate(Jobs[idx]);
+            if (!pf.Ok)
+                return (false, pf.ErrorKey);
+
+            if (!ExecutionGate.Wait(0))
+                return (false, "execution_busy");
+
             try
             {
-                bool ok = svc.Execute(Jobs[idx], idx, Settings);
-                return (ok, ok ? string.Empty : "errors");
+                BackupService svc = CreateBackupService();
+                try
+                {
+                    bool ok = svc.Execute(Jobs[idx], idx, Settings, cancellationToken);
+                    return (ok, ok ? string.Empty : "errors");
+                }
+                catch (OperationCanceledException)
+                {
+                    return (false, "cancelled");
+                }
+                catch (Exception ex)
+                {
+                    return (false, ex.Message);
+                }
             }
-            catch (Exception ex)
+            finally
             {
-                return (false, ex.Message);
+                ExecutionGate.Release();
             }
         }
 
-        /// <summary>Executes all configured backup jobs sequentially.</summary>
-        public (bool AllSuccess, List<string> Errors) ExecuteAllJobs()
+        /// <summary>Runs all jobs sequentially under a single acquisition of the execution gate.</summary>
+        public (bool AllSuccess, List<string> Errors) ExecuteAllJobs(
+            CancellationToken cancellationToken = default)
         {
-            bool allOk = true;
-            var  errors = new List<string>();
-            var  svc    = CreateBackupService();
+            if (Jobs.Count == 0)
+                return (true, new List<string>());
 
             for (int i = 0; i < Jobs.Count; i++)
             {
-                try
+                BackupPreflight.Result pf = BackupPreflight.Validate(Jobs[i]);
+                if (!pf.Ok)
+                    return (false, new List<string> { $"{Jobs[i].Name}: {pf.ErrorKey}" });
+            }
+
+            if (!ExecutionGate.Wait(0))
+                return (false, new List<string> { "execution_busy" });
+
+            bool      allOk = true;
+            var       errors = new List<string>();
+            try
+            {
+                BackupService svc = CreateBackupService();
+                for (int i = 0; i < Jobs.Count; i++)
                 {
-                    bool ok = svc.Execute(Jobs[i], i, Settings);
-                    if (!ok) { allOk = false; errors.Add($"{Jobs[i].Name}: completed with errors"); }
+                    try
+                    {
+                        bool ok = svc.Execute(Jobs[i], i, Settings, cancellationToken);
+                        if (!ok)
+                        {
+                            allOk = false;
+                            errors.Add($"{Jobs[i].Name}: completed with errors");
+                        }
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        allOk = false;
+                        errors.Add($"{Jobs[i].Name}: cancelled");
+                        break;
+                    }
+                    catch (Exception ex)
+                    {
+                        allOk = false;
+                        errors.Add($"{Jobs[i].Name}: {ex.Message}");
+                    }
                 }
-                catch (Exception ex) { allOk = false; errors.Add($"{Jobs[i].Name}: {ex.Message}"); }
+            }
+            finally
+            {
+                ExecutionGate.Release();
             }
 
             return (allOk, errors);
         }
 
-        /// <summary>
-        /// Executes a set of jobs specified by their 1-based indices.
-        /// Supports CLI inputs parsed as ranges ("1-3") or lists ("1;3").
-        /// </summary>
-        public (bool AllSuccess, List<string> Errors) ExecuteJobs(IEnumerable<int> oneBasedIndices)
+        /// <summary>Runs selected jobs (CLI / range) with one gate acquisition.</summary>
+        public (bool AllSuccess, List<string> Errors) ExecuteJobs(
+            IEnumerable<int> oneBasedIndices,
+            CancellationToken cancellationToken = default)
         {
             bool allOk = true;
             var  errors = new List<string>();
-            var  svc    = CreateBackupService();
+            var  indices = new List<int>();
 
             foreach (int oneIdx in oneBasedIndices)
             {
@@ -214,20 +238,60 @@ namespace EasySave.Core.ViewModels
                     continue;
                 }
 
-                try
+                indices.Add(idx);
+            }
+
+            if (indices.Count == 0)
+                return (allOk, errors);
+
+            foreach (int idx in indices)
+            {
+                BackupPreflight.Result pf = BackupPreflight.Validate(Jobs[idx]);
+                if (!pf.Ok)
                 {
-                    bool ok = svc.Execute(Jobs[idx], idx, Settings);
-                    if (!ok) { allOk = false; errors.Add($"{Jobs[idx].Name}: completed with errors"); }
+                    allOk = false;
+                    errors.Add($"{Jobs[idx].Name}: {pf.ErrorKey}");
+                    return (allOk, errors);
                 }
-                catch (Exception ex) { allOk = false; errors.Add($"{Jobs[idx].Name}: {ex.Message}"); }
+            }
+
+            if (!ExecutionGate.Wait(0))
+                return (false, new List<string> { "execution_busy" });
+
+            try
+            {
+                BackupService svc = CreateBackupService();
+                foreach (int idx in indices)
+                {
+                    try
+                    {
+                        bool ok = svc.Execute(Jobs[idx], idx, Settings, cancellationToken);
+                        if (!ok)
+                        {
+                            allOk = false;
+                            errors.Add($"{Jobs[idx].Name}: completed with errors");
+                        }
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        allOk = false;
+                        errors.Add($"{Jobs[idx].Name}: cancelled");
+                        break;
+                    }
+                    catch (Exception ex)
+                    {
+                        allOk = false;
+                        errors.Add($"{Jobs[idx].Name}: {ex.Message}");
+                    }
+                }
+            }
+            finally
+            {
+                ExecutionGate.Release();
             }
 
             return (allOk, errors);
         }
-
-        // ──────────────────────────────────────────────────────────────────────
-        // Private helpers
-        // ──────────────────────────────────────────────────────────────────────
 
         private BackupService CreateBackupService() =>
             new BackupService(_stateService, _states, _logger, _businessSoftware);

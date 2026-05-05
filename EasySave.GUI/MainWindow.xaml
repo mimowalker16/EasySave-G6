@@ -155,6 +155,11 @@
                                     Style="{StaticResource SuccessBtn}"
                                     Command="{Binding ExecuteAllCommand}"
                                     Margin="0,0,8,0"/>
+                            <Button Content="◼  Cancel"
+                                    Style="{StaticResource DangerBtn}"
+                                    Command="{Binding CancelRunCommand}"
+                                    Margin="0,0,8,0"
+                                    ToolTip="Cooperative cancel (after current file)"/>
                             <Button Content="＋  New Job"
                                     Style="{StaticResource PrimaryBtn}"
                                     Command="{Binding NewJobCommand}"/>
@@ -356,6 +361,49 @@
                                       Width="200" HorizontalAlignment="Left">
                                 <ComboBoxItem Content="JSON" Foreground="{StaticResource TextPrimary}"/>
                                 <ComboBoxItem Content="XML"  Foreground="{StaticResource TextPrimary}"/>
+                            </ComboBox>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Log directory -->
+                    <Border Background="{StaticResource BgCard}"
+                            BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="1" CornerRadius="10"
+                            Padding="20,18" Margin="0,0,0,14">
+                        <StackPanel>
+                            <TextBlock Text="Log directory"
+                                       FontSize="14" FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextPrimary}"/>
+                            <TextBlock Text="Leave empty for default (%AppData%\EasySave\Logs). You may use e.g. D:\CompanyBackups\Logs or %ProgramData%\EasySave\Logs."
+                                       FontSize="12"
+                                       Foreground="{StaticResource TextSecondary}"
+                                       Margin="0,4,0,12"
+                                       TextWrapping="Wrap"/>
+                            <TextBox Style="{StaticResource ModernTextBox}"
+                                     Text="{Binding LogDirectoryText, UpdateSourceTrigger=PropertyChanged}"
+                                     Width="480" HorizontalAlignment="Left"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- JSON layout (ignored for XML logs) -->
+                    <Border Background="{StaticResource BgCard}"
+                            BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="1" CornerRadius="10"
+                            Padding="20,18" Margin="0,0,0,14">
+                        <StackPanel>
+                            <TextBlock Text="JSON log layout"
+                                       FontSize="14" FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextPrimary}"/>
+                            <TextBlock Text="Pretty array: one readable JSON array per day. NDJSON: one compact object per line in a .ndjson file (recommended for thousands of files)."
+                                       FontSize="12"
+                                       Foreground="{StaticResource TextSecondary}"
+                                       Margin="0,4,0,12"
+                                       TextWrapping="Wrap"/>
+                            <ComboBox Style="{StaticResource ModernComboBox}"
+                                      SelectedIndex="{Binding JsonLayoutIndex}"
+                                      Width="340" HorizontalAlignment="Left">
+                                <ComboBoxItem Content="Pretty JSON array (*.json)" Foreground="{StaticResource TextPrimary}"/>
+                                <ComboBoxItem Content="Fast NDJSON lines (*.ndjson)" Foreground="{StaticResource TextPrimary}"/>
                             </ComboBox>
                         </StackPanel>
                     </Border>

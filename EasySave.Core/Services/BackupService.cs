@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Threading;
 using EasySave.Core.Models;
 using EasySave.Core.Strategies;
 using EasyLog;
@@ -9,26 +10,22 @@ using EasyLog;
 namespace EasySave.Core.Services
 {
     /// <summary>
-    /// Core backup engine. Executes a backup job using the Strategy pattern.
-    /// Delegates file-collection logic to an <see cref="IBackupStrategy"/>,
-    /// updates real-time state, logs every transfer via <see cref="ILogger"/>,
-    /// optionally encrypts files via CryptoSoft,
-    /// and blocks execution if a business software is detected.
+    /// Core backup engine. Executes a backup job using the Strategy pattern,
+    /// cooperative cancellation, throttled state snapshots, and chunked file copy.
     /// </summary>
     public class BackupService
     {
-        private readonly StateService           _stateService;
-        private readonly List<BackupState>      _allStates;
-        private readonly ILogger                _logger;
-        private readonly BusinessSoftwareService _businessSoftware;
+        private const int CopyBufferBytes            = 262144;
+        private const int StateFlushEveryNFiles      = 8;
 
-        /// <summary>
-        /// Creates a new BackupService.
-        /// </summary>
-        /// <param name="stateService">Service used to persist real-time job state.</param>
-        /// <param name="allStates">Shared in-memory list of all job states.</param>
-        /// <param name="logger">Logger used for file-transfer events (JSON or XML).</param>
-        /// <param name="businessSoftware">Service used to detect running business software.</param>
+        private readonly StateService               _stateService;
+        private readonly List<BackupState>          _allStates;
+        private readonly ILogger                    _logger;
+        private readonly BusinessSoftwareService    _businessSoftware;
+
+        private readonly TimeSpan _stateMinInterval = TimeSpan.FromMilliseconds(150);
+        private          DateTimeOffset _nextStateFlushUtc = DateTimeOffset.MinValue;
+
         public BackupService(
             StateService           stateService,
             List<BackupState>      allStates,
@@ -41,16 +38,15 @@ namespace EasySave.Core.Services
             _businessSoftware = businessSoftware;
         }
 
-        /// <summary>
-        /// Executes the given backup job using the appropriate strategy.
-        /// Throws <see cref="InvalidOperationException"/> if a business software is detected.
-        /// </summary>
-        /// <param name="job">The backup job to execute.</param>
-        /// <param name="stateIndex">Zero-based index of this job's state in the allStates list.</param>
-        /// <param name="settings">Global application settings (extensions, business software name).</param>
-        /// <returns>True if completed without errors; false if any file transfer failed.</returns>
-        public bool Execute(BackupJob job, int stateIndex, AppSettings settings)
+        /// <summary>Runs one backup job. Throws <see cref="OperationCanceledException"/> when <paramref name="cancellationToken"/> is triggered.</summary>
+        public bool Execute(
+            BackupJob        job,
+            int              stateIndex,
+            AppSettings      settings,
+            CancellationToken cancellationToken = default)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             if (!Directory.Exists(job.SourceDirectory))
                 throw new DirectoryNotFoundException(
                     $"Source directory not found: {job.SourceDirectory}");
@@ -65,113 +61,191 @@ namespace EasySave.Core.Services
 
             List<(string Source, string Target)> filesToCopy = strategy.CollectFiles(job);
 
-            // Initialise state
             BackupState state = _allStates[stateIndex];
-            state.State               = BackupStateType.Active;
-            state.TotalFiles          = filesToCopy.Count;
-            state.TotalSize           = ComputeTotalSize(filesToCopy);
-            state.RemainingFiles      = filesToCopy.Count;
-            state.RemainingSize       = state.TotalSize;
-            state.Progress            = 0;
-            state.LastActionTimestamp = DateTime.Now.ToString("o");
-            _stateService.UpdateState(_allStates);
+            bool        hasError = false;
 
-            bool hasError = false;
-
-            foreach ((string sourceFile, string targetFile) in filesToCopy)
+            try
             {
-                // Block mid-backup if business software is detected
-                if (_businessSoftware.IsRunning(settings.BusinessSoftwareName))
-                {
-                    _logger.LogTransfer(job.Name, sourceFile, targetFile,
-                        new FileInfo(sourceFile).Length, -1, 0);
-                    hasError = true;
-                    break;
-                }
-
-                state.CurrentSourceFile   = sourceFile;
-                state.CurrentTargetFile   = targetFile;
+                state.State               = BackupStateType.Active;
+                state.TotalFiles          = filesToCopy.Count;
+                state.TotalSize           = ComputeTotalSize(filesToCopy);
+                state.RemainingFiles      = filesToCopy.Count;
+                state.RemainingSize       = state.TotalSize;
+                state.Progress            = 0;
                 state.LastActionTimestamp = DateTime.Now.ToString("o");
-                _stateService.UpdateState(_allStates);
+                PersistStateIfNeeded(forceImmediate: true);
 
-                long fileSize       = new FileInfo(sourceFile).Length;
-                long transferTimeMs;
-                long encryptionTimeMs = 0;
-
-                var sw = Stopwatch.StartNew();
-                try
+                for (int fi = 0; fi < filesToCopy.Count; fi++)
                 {
-                    string? targetDir = Path.GetDirectoryName(targetFile);
-                    if (targetDir != null)
-                        Directory.CreateDirectory(targetDir);
+                    (string sourceFile, string targetFile) = filesToCopy[fi];
+                    cancellationToken.ThrowIfCancellationRequested();
 
-                    File.Copy(sourceFile, targetFile, overwrite: true);
-                    sw.Stop();
-                    transferTimeMs = sw.ElapsedMilliseconds;
-                }
-                catch (Exception)
-                {
-                    sw.Stop();
-                    transferTimeMs = -sw.ElapsedMilliseconds;
-                    hasError = true;
+                    if (_businessSoftware.IsRunning(settings.BusinessSoftwareName))
+                    {
+                        _logger.LogTransfer(job.Name, sourceFile, targetFile,
+                            SafeFileLength(sourceFile), -1, 0);
+                        hasError = true;
+                        break;
+                    }
+
+                    state.CurrentSourceFile   = sourceFile;
+                    state.CurrentTargetFile   = targetFile;
+                    state.LastActionTimestamp = DateTime.Now.ToString("o");
+                    PersistStateIfNeeded(ShouldForceAfterFile(fi, filesToCopy.Count));
+
+                    long fileSize = SafeFileLength(sourceFile);
+
+                    long transferTimeMs;
+                    long encryptionTimeMs = 0;
+
+                    var sw = Stopwatch.StartNew();
+                    try
+                    {
+                        string? targetDir = Path.GetDirectoryName(targetFile);
+                        if (targetDir != null)
+                            Directory.CreateDirectory(targetDir);
+
+                        CopyFileWithCancellation(sourceFile, targetFile, cancellationToken);
+                        sw.Stop();
+                        transferTimeMs = sw.ElapsedMilliseconds;
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        sw.Stop();
+                        TryDeletePartialTarget(targetFile);
+                        throw;
+                    }
+                    catch (Exception)
+                    {
+                        sw.Stop();
+                        transferTimeMs = -sw.ElapsedMilliseconds;
+                        hasError = true;
+                        _logger.LogTransfer(job.Name, sourceFile, targetFile,
+                            fileSize, transferTimeMs, 0);
+                        state.RemainingFiles--;
+                        state.RemainingSize -= fileSize;
+                        UpdateProgress(state);
+                        continue;
+                    }
+
+                    string extension = Path.GetExtension(sourceFile).ToLowerInvariant();
+                    if (settings.EncryptedExtensions.Count > 0
+                        && settings.EncryptedExtensions.Contains(extension))
+                    {
+                        encryptionTimeMs = RunCryptoSoft(targetFile, cancellationToken);
+                        if (encryptionTimeMs < 0)
+                            hasError = true;
+                    }
+
                     _logger.LogTransfer(job.Name, sourceFile, targetFile,
-                        fileSize, transferTimeMs, 0);
+                        fileSize, transferTimeMs, encryptionTimeMs);
+
                     state.RemainingFiles--;
                     state.RemainingSize -= fileSize;
-                    continue;
+                    UpdateProgress(state);
+
+                    PersistStateIfNeeded(ShouldForceAfterFile(fi, filesToCopy.Count));
                 }
 
-                // Encrypt the file if its extension is in the list
-                string extension = Path.GetExtension(sourceFile).ToLowerInvariant();
-                if (settings.EncryptedExtensions.Count > 0
-                    && settings.EncryptedExtensions.Contains(extension))
-                {
-                    encryptionTimeMs = RunCryptoSoft(targetFile);
-                    if (encryptionTimeMs < 0)
-                        hasError = true;
-                }
-
-                _logger.LogTransfer(job.Name, sourceFile, targetFile,
-                    fileSize, transferTimeMs, encryptionTimeMs);
-
-                state.RemainingFiles--;
-                state.RemainingSize -= fileSize;
-                state.Progress = state.TotalFiles > 0
-                    ? Math.Round((1.0 - (double)state.RemainingFiles / state.TotalFiles) * 100, 1)
-                    : 100;
+                FinalizeSuccessState(state);
+                PersistStateIfNeeded(forceImmediate: true);
+                return !hasError;
             }
-
-            // Mark job as completed
-            state.State               = BackupStateType.End;
-            state.Progress            = 100;
-            state.RemainingFiles      = 0;
-            state.RemainingSize       = 0;
-            state.CurrentSourceFile   = string.Empty;
-            state.CurrentTargetFile   = string.Empty;
-            state.LastActionTimestamp = DateTime.Now.ToString("o");
-            _stateService.UpdateState(_allStates);
-
-            return !hasError;
+            catch (OperationCanceledException)
+            {
+                state.State               = BackupStateType.Canceled;
+                state.CurrentSourceFile   = string.Empty;
+                state.CurrentTargetFile   = string.Empty;
+                state.LastActionTimestamp = DateTime.Now.ToString("o");
+                PersistStateIfNeeded(forceImmediate: true);
+                throw;
+            }
         }
 
-        // ──────────────────────────────────────────────────────────────────────
-        // Private helpers
-        // ──────────────────────────────────────────────────────────────────────
-
-        /// <summary>
-        /// Runs the external CryptoSoft process on the given file.
-        /// Returns the encryption time in ms on success, or a negative error code on failure.
-        /// </summary>
-        private static long RunCryptoSoft(string filePath)
+        private void FinalizeSuccessState(BackupState state)
         {
-            // CryptoSoft.exe is expected to be alongside the executable.
+            state.State = BackupStateType.End;
+            if (state.RemainingFiles <= 0 || state.TotalFiles == 0)
+            {
+                state.Progress            = 100;
+                state.RemainingFiles      = 0;
+                state.RemainingSize       = 0;
+                state.CurrentSourceFile   = string.Empty;
+                state.CurrentTargetFile   = string.Empty;
+            }
+            state.LastActionTimestamp = DateTime.Now.ToString("o");
+        }
+
+        private static void UpdateProgress(BackupState state)
+        {
+            state.Progress = state.TotalFiles > 0
+                ? Math.Round((1.0 - (double)state.RemainingFiles / state.TotalFiles) * 100, 1)
+                : 100;
+        }
+
+        private bool ShouldForceAfterFile(int zeroBasedIndex, int total)
+        {
+            if (total <= 0) return true;
+            int oneBased = zeroBasedIndex + 1;
+            return oneBased % StateFlushEveryNFiles == 0 || oneBased == total;
+        }
+
+        /// <summary>Persists state immediately if forced, otherwise at most once per <see cref="_stateMinInterval"/>.</summary>
+        private void PersistStateIfNeeded(bool forceImmediate)
+        {
+            var now = DateTimeOffset.UtcNow;
+            if (!forceImmediate && now < _nextStateFlushUtc)
+                return;
+
+            _stateService.UpdateState(_allStates);
+            _nextStateFlushUtc = now.Add(_stateMinInterval);
+        }
+
+        private static void TryDeletePartialTarget(string targetFile)
+        {
+            try
+            {
+                if (File.Exists(targetFile))
+                    File.Delete(targetFile);
+            }
+            catch { /* ignore */ }
+        }
+
+        private static long SafeFileLength(string path)
+        {
+            try { return new FileInfo(path).Length; }
+            catch { return 0; }
+        }
+
+        private static void CopyFileWithCancellation(string sourcePath, string destPath, CancellationToken ct)
+        {
+            const int bufSize = CopyBufferBytes;
+            using var src = new FileStream(
+                sourcePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, bufSize,
+                FileOptions.SequentialScan);
+            using var dst = new FileStream(
+                destPath, FileMode.Create, FileAccess.Write, FileShare.None, bufSize,
+                FileOptions.WriteThrough);
+
+            var buffer = new byte[bufSize];
+            int        read;
+            while ((read = src.Read(buffer, 0, buffer.Length)) > 0)
+            {
+                ct.ThrowIfCancellationRequested();
+                dst.Write(buffer, 0, read);
+            }
+        }
+
+        private static long RunCryptoSoft(string filePath, CancellationToken ct)
+        {
             string cryptoSoftPath = Path.Combine(
                 AppDomain.CurrentDomain.BaseDirectory, "CryptoSoft.exe");
 
             if (!File.Exists(cryptoSoftPath))
-                return -1; // CryptoSoft not installed
+                return -1;
 
             var sw = Stopwatch.StartNew();
+            Process? proc = null;
             try
             {
                 var psi = new ProcessStartInfo
@@ -183,12 +257,30 @@ namespace EasySave.Core.Services
                     CreateNoWindow         = true
                 };
 
-                using Process? proc = Process.Start(psi);
-                proc?.WaitForExit();
-                sw.Stop();
+                proc = Process.Start(psi);
+                if (proc == null)
+                {
+                    sw.Stop();
+                    return -98;
+                }
 
-                int exitCode = proc?.ExitCode ?? -99;
-                return exitCode == 0 ? sw.ElapsedMilliseconds : exitCode;
+                while (!proc.WaitForExit(200))
+                    ct.ThrowIfCancellationRequested();
+
+                sw.Stop();
+                int exitCode = proc.ExitCode;
+                if (exitCode == 0)
+                    return sw.ElapsedMilliseconds;
+
+                if (exitCode < 0)
+                    return exitCode;
+                return -Math.Abs(exitCode);
+            }
+            catch (OperationCanceledException)
+            {
+                TryKillCrypto(proc);
+                sw.Stop();
+                throw;
             }
             catch
             {
@@ -197,11 +289,20 @@ namespace EasySave.Core.Services
             }
         }
 
+        private static void TryKillCrypto(Process? proc)
+        {
+            if (proc?.HasExited == false)
+            {
+                try { proc.Kill(entireProcessTree: true); }
+                catch { /* ignore */ }
+            }
+        }
+
         private static long ComputeTotalSize(List<(string Source, string Target)> files)
         {
             long total = 0;
             foreach ((string source, _) in files)
-                total += new FileInfo(source).Length;
+                total += SafeFileLength(source);
             return total;
         }
     }

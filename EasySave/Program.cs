@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using EasySave.Core.Localization;
 using EasySave.Core.Services;
 using EasySave.Core.ViewModels;
@@ -56,9 +57,17 @@ namespace EasySave
 
                 Console.ForegroundColor = ConsoleColor.Blue;
                 Console.WriteLine($"EasySave v1.1 — Executing {indices.Count} job(s)...\n");
+                Console.WriteLine("(Press Ctrl+C to cancel cooperatively.)\n");
                 Console.ResetColor();
 
-                var (allOk, errors) = viewModel.ExecuteJobs(indices);
+                using var cts = new CancellationTokenSource();
+                Console.CancelKeyPress += (_, e) =>
+                {
+                    e.Cancel = true;
+                    cts.Cancel();
+                };
+
+                var (allOk, errors) = viewModel.ExecuteJobs(indices, cts.Token);
 
                 if (allOk)
                 {
@@ -68,8 +77,9 @@ namespace EasySave
                 }
                 else
                 {
-                    Console.ForegroundColor = ConsoleColor.Yellow;
-                    Console.WriteLine("Completed with errors:");
+                    bool anyCancelled = errors.Exists(s => s.Contains("cancelled", StringComparison.OrdinalIgnoreCase));
+                    Console.ForegroundColor = anyCancelled ? ConsoleColor.Yellow : ConsoleColor.Yellow;
+                    Console.WriteLine(anyCancelled ? "Completed or stopped (cancel / errors):" : "Completed with errors:");
                     Console.ResetColor();
                     foreach (string e in errors)
                     {

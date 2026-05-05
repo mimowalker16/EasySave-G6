@@ -3,6 +3,9 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Windows;
 using System.Windows.Input;
 using EasySave.Core.Models;
 using EasySave.Core.Services;
@@ -87,9 +90,13 @@ namespace EasySave.GUI.ViewModels
         private string _statusMessage = string.Empty;
         private bool   _isEditing;
         private string _currentPage = "Jobs";
+        private bool   _isBusy;
+        private CancellationTokenSource? _runCts;
 
         // ── Settings fields ────────────────────────────────────────────────
         private int    _logFormatIndex;   // 0=JSON, 1=XML
+        private string _logDirectoryText = string.Empty;
+        private int    _jsonLayoutIndex;  // 0=Pretty array, 1=NDJSON (.ndjson)
         private string _businessSoftware = string.Empty;
         private string _encryptedExtensionsText = string.Empty;
 
@@ -137,6 +144,19 @@ namespace EasySave.GUI.ViewModels
 
         public string FormTitle => IsEditing ? "Edit Job" : "New Job";
 
+        /// <summary>True while backup work runs on a background thread (UI stays responsive).</summary>
+        public bool IsBusy
+        {
+            get => _isBusy;
+            private set
+            {
+                if (_isBusy == value) return;
+                _isBusy = value;
+                OnPropertyChanged();
+                CommandManager.InvalidateRequerySuggested();
+            }
+        }
+
         public string CurrentPage
         {
             get => _currentPage;
@@ -148,6 +168,20 @@ namespace EasySave.GUI.ViewModels
         {
             get => _logFormatIndex;
             set { _logFormatIndex = value; OnPropertyChanged(); }
+        }
+
+        /// <summary>Absolute or expandable path (%ProgramData%\...) where daily logs are stored; empty uses default AppData folder.</summary>
+        public string LogDirectoryText
+        {
+            get => _logDirectoryText;
+            set { _logDirectoryText = value; OnPropertyChanged(); }
+        }
+
+        /// <summary>0 = pretty JSON array; 1 = fast NDJSON line-delimited (*.ndjson).</summary>
+        public int JsonLayoutIndex
+        {
+            get => _jsonLayoutIndex;
+            set { _jsonLayoutIndex = value; OnPropertyChanged(); }
         }
 
         public string BusinessSoftware
@@ -175,6 +209,7 @@ namespace EasySave.GUI.ViewModels
         public ICommand NewJobCommand     { get; }
         public ICommand SaveSettingsCommand { get; }
         public ICommand NavigateCommand   { get; }
+        public ICommand CancelRunCommand { get; }
 
         public MainViewModel(BackupViewModel core)
         {
@@ -182,17 +217,22 @@ namespace EasySave.GUI.ViewModels
 
             // Load settings into form
             LogFormatIndex           = core.Settings.LogFormat == LogFormat.Xml ? 1 : 0;
+            LogDirectoryText         = core.Settings.LogDirectory ?? string.Empty;
+            JsonLayoutIndex          = core.Settings.JsonLogLayout == JsonLogLayout.Ndjson ? 1 : 0;
             BusinessSoftware         = core.Settings.BusinessSoftwareName;
             EncryptedExtensionsText  = string.Join(",", core.Settings.EncryptedExtensions);
 
-            SaveJobCommand     = new RelayCommand(_ => SaveJob());
-            DeleteJobCommand   = new RelayCommand(_ => DeleteSelected(), _ => SelectedJob != null);
-            ExecuteJobCommand  = new RelayCommand(_ => ExecuteSelected(), _ => SelectedJob != null);
-            ExecuteAllCommand  = new RelayCommand(_ => ExecuteAll());
-            SelectJobCommand   = new RelayCommand(o => SelectJob(o as JobRow));
-            NewJobCommand      = new RelayCommand(_ => StartNewJob());
-            SaveSettingsCommand = new RelayCommand(_ => SaveSettings());
+            SaveJobCommand     = new RelayCommand(_ => SaveJob(), _ => !IsBusy);
+            DeleteJobCommand   = new RelayCommand(_ => DeleteSelected(), _ => !IsBusy && SelectedJob != null);
+            ExecuteJobCommand  = new RelayCommand(ExecuteOneKickoff,
+                _ => !IsBusy && JobRows.Count > 0);
+            ExecuteAllCommand  = new RelayCommand(_ => ExecuteAllKickoff(),
+                _ => !IsBusy && JobRows.Count > 0);
+            SelectJobCommand   = new RelayCommand(o => SelectJob(o as JobRow), _ => !IsBusy);
+            NewJobCommand      = new RelayCommand(_ => StartNewJob(), _ => !IsBusy);
+            SaveSettingsCommand = new RelayCommand(_ => SaveSettings(), _ => !IsBusy);
             NavigateCommand    = new RelayCommand(o => CurrentPage = o?.ToString() ?? "Jobs");
+            CancelRunCommand   = new RelayCommand(_ => CancelRun(), _ => IsBusy);
 
             RefreshJobRows();
         }
@@ -227,41 +267,110 @@ namespace EasySave.GUI.ViewModels
             StartNewJob();
         }
 
-        private void ExecuteSelected()
+        /// <summary>Runs job from toolbar list button (<see cref="JobRow"/> CommandParameter).</summary>
+        private void ExecuteOneKickoff(object? parameter)
         {
-            if (SelectedJob == null) return;
-            var row = SelectedJob;
-            row.Status   = "Running…";
-            row.Progress = 0;
-
-            var (ok, err) = _core.ExecuteJob(row.Index);
-
-            row.Status   = ok ? "Done ✔" : $"Error: {err}";
-            row.Progress = 100;
-            StatusMessage = ok
-                ? $"✔ Job '{row.Name}' completed."
-                : $"✖ Job '{row.Name}': {err}";
+            var row = parameter as JobRow;
+            _ = ExecuteOneAsync(row ?? SelectedJob);
         }
 
-        private void ExecuteAll()
+        private void ExecuteAllKickoff()
+            => _ = ExecuteAllAsync();
+
+        private void CancelRun()
         {
+            _runCts?.Cancel();
+            StatusMessage = "Cancelling — will stop after the current file operation…";
+        }
+
+        /// <summary>Executes a single backup on a pool thread so the WPF window stays responsive.</summary>
+        private async Task ExecuteOneAsync(JobRow? row)
+        {
+            if (row == null || IsBusy) return;
+
+            _runCts?.Dispose();
+            _runCts = new CancellationTokenSource();
+            CancellationToken token = _runCts.Token;
+
+            row.Status    = "Running…";
+            row.Progress  = 0;
+            StatusMessage = $"Working on \"{row.Name}\"…";
+
+            IsBusy = true;
+            try
+            {
+                (bool ok, string err) = await Task.Run(
+                    () => _core.ExecuteJob(row.Index, token), token).ConfigureAwait(false);
+
+                Application.Current!.Dispatcher.Invoke(() =>
+                {
+                    if (err == "cancelled")
+                    {
+                        row.Progress = 0;
+                        row.Status   = "Canceled";
+                        StatusMessage = $"◼ Job '{row.Name}' was cancelled.";
+                    }
+                    else
+                    {
+                        row.Progress = ok ? 100 : 0;
+                        row.Status   = ok ? "Done ✔" : $"Error: {err}";
+                        StatusMessage = ok
+                            ? $"✔ Job '{row.Name}' completed."
+                            : $"✖ Job '{row.Name}': {err}";
+                    }
+                });
+            }
+            finally
+            {
+                Application.Current!.Dispatcher.Invoke(() => { IsBusy = false; });
+                _runCts?.Dispose();
+                _runCts = null;
+            }
+        }
+
+        /// <summary>Runs all jobs sequentially on a background thread.</summary>
+        private async Task ExecuteAllAsync()
+        {
+            if (IsBusy || JobRows.Count == 0) return;
+
+            _runCts?.Dispose();
+            _runCts = new CancellationTokenSource();
+            CancellationToken token = _runCts.Token;
+
             foreach (var row in JobRows)
             {
                 row.Status   = "Running…";
                 row.Progress = 0;
             }
 
-            var (allOk, errors) = _core.ExecuteAllJobs();
+            StatusMessage = "Running all jobs…";
+            IsBusy        = true;
 
-            foreach (var row in JobRows)
+            try
             {
-                row.Status   = "Done ✔";
-                row.Progress = 100;
-            }
+                (bool allOk, List<string> errors) = await Task.Run(
+                    () => _core.ExecuteAllJobs(token), token).ConfigureAwait(false);
 
-            StatusMessage = allOk
-                ? "✔ All jobs completed."
-                : $"✖ Completed with errors: {string.Join(", ", errors)}";
+                Application.Current!.Dispatcher.Invoke(() =>
+                {
+                    bool anyCancel = errors.Exists(e => e.Contains("cancelled", StringComparison.OrdinalIgnoreCase));
+                    foreach (var row in JobRows)
+                    {
+                        row.Progress = allOk ? 100 : (anyCancel ? 0 : 100);
+                        row.Status   = allOk ? "Done ✔" : (anyCancel ? "Canceled / errors" : "Completed with errors");
+                    }
+
+                    StatusMessage = allOk
+                        ? "✔ All jobs completed."
+                        : $"✖ {string.Join(", ", errors)}";
+                });
+            }
+            finally
+            {
+                Application.Current!.Dispatcher.Invoke(() => { IsBusy = false; });
+                _runCts?.Dispose();
+                _runCts = null;
+            }
         }
 
         private void SelectJob(JobRow? row)
@@ -301,6 +410,8 @@ namespace EasySave.GUI.ViewModels
             var settings = new AppSettings
             {
                 LogFormat            = LogFormatIndex == 1 ? LogFormat.Xml : LogFormat.Json,
+                LogDirectory         = LogDirectoryText.Trim(),
+                JsonLogLayout        = JsonLayoutIndex == 1 ? JsonLogLayout.Ndjson : JsonLogLayout.PrettyArray,
                 EncryptedExtensions  = extensions,
                 BusinessSoftwareName = BusinessSoftware.Trim()
             };

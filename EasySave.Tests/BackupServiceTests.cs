@@ -34,13 +34,14 @@ namespace EasySave.Tests
 
         private BackupService BuildService(string? businessSoftwareName = null)
         {
-            var stateService     = new StateService(_tempDir);
-            var allStates        = new System.Collections.Generic.List<BackupState>
+            var stateService = new StateService(_tempDir);
+            var allStates = new System.Collections.Generic.List<BackupState>
                                    { new BackupState { JobName = "TestJob" } };
-            var logger           = LoggerFactory.Create(LogFormat.Json);
+
+            string logDir = Path.Combine(_tempDir, "Logs");
+            var    logger           = new JsonLogger(logDir);
             var businessSoftware = new BusinessSoftwareService();
 
-            // Override the business software name for tests
             return new BackupService(stateService, allStates, logger, businessSoftware);
         }
 

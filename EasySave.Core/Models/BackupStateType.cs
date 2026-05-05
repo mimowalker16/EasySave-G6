@@ -11,7 +11,10 @@ namespace EasySave.Core.Models
         /// <summary>The job is currently running.</summary>
         Active,
 
-        /// <summary>The job has completed its last execution successfully.</summary>
-        End
+        /// <summary>The job has completed its last run (check logs for per-file errors).</summary>
+        End,
+
+        /// <summary>The user cancelled the run or the operation was interrupted cooperatively.</summary>
+        Canceled
     }
 }
