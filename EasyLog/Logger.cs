@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Net.Http;
+using System.Net.Http.Json;
 using System.IO;
 using System.Text;
 using System.Text.Json;
@@ -33,6 +35,17 @@ namespace EasyLog
         Ndjson
     }
 
+    /// <summary>Where to write daily logs.</summary>
+    public enum LogDestinationMode
+    {
+        /// <summary>Write only local files.</summary>
+        LocalOnly,
+        /// <summary>Send only to central server.</summary>
+        CentralOnly,
+        /// <summary>Write local and send central copy.</summary>
+        LocalAndCentral
+    }
+
     // ──────────────────────────────────────────────────────────────────────────
     // Options + directory resolution
     // ──────────────────────────────────────────────────────────────────────────
@@ -45,6 +58,47 @@ namespace EasyLog
 
         /// <summary>JSON storage layout (ignored when format is XML).</summary>
         public JsonLogLayout JsonLogLayout { get; init; } = JsonLogLayout.PrettyArray;
+
+        /// <summary>Destination mode for logs.</summary>
+        public LogDestinationMode DestinationMode { get; init; } = LogDestinationMode.LocalOnly;
+
+        /// <summary>Optional central log server endpoint, e.g. http://localhost:8080/api/logs.</summary>
+        public string? CentralLogEndpoint { get; init; }
+
+        /// <summary>Logical client id to distinguish emitters in centralized mode.</summary>
+        public string? CentralClientId { get; init; }
+    }
+
+    internal static class CentralLogSender
+    {
+        private static readonly HttpClient Http = new();
+
+        public static void TrySend(LoggerOptions options, LogFormat format, LogEntry entry)
+        {
+            if (options.DestinationMode == LogDestinationMode.LocalOnly)
+                return;
+            if (string.IsNullOrWhiteSpace(options.CentralLogEndpoint))
+                return;
+
+            try
+            {
+                var payload = new
+                {
+                    clientId = string.IsNullOrWhiteSpace(options.CentralClientId)
+                        ? Environment.MachineName
+                        : options.CentralClientId,
+                    format = format.ToString(),
+                    timestamp = entry.Timestamp,
+                    entry
+                };
+                // fire-and-forget by design: backup flow must not fail on central sink outages
+                _ = Http.PostAsJsonAsync(options.CentralLogEndpoint, payload);
+            }
+            catch
+            {
+                // swallow centralization errors to preserve backup execution
+            }
+        }
     }
 
     /// <summary>Resolves the directory where daily log files are written.</summary>
@@ -234,6 +288,7 @@ namespace EasyLog
     {
         private readonly string            _logDirectory;
         private readonly JsonLogLayout     _layout;
+        private readonly LoggerOptions     _options;
 
         private static readonly JsonSerializerOptions PrettyOpts = new()
         {
@@ -255,9 +310,14 @@ namespace EasyLog
 
         /// <summary>Explicit layout (NDJSON writes <c>*.ndjson</c>).</summary>
         public JsonLogger(string logDirectory, JsonLogLayout layout)
+            : this(logDirectory, layout, new LoggerOptions())
+        { }
+
+        public JsonLogger(string logDirectory, JsonLogLayout layout, LoggerOptions options)
         {
             _logDirectory = logDirectory;
             _layout       = layout;
+            _options      = options;
         }
 
         /// <inheritdoc/>
@@ -272,19 +332,24 @@ namespace EasyLog
             var entry = BuildEntry(backupJobName, sourceFilePath, targetFilePath,
                 fileSize, transferTimeMs, encryptionTimeMs);
 
-            Directory.CreateDirectory(_logDirectory);
-            string date   = $"{DateTime.Now:yyyy-MM-dd}";
-            string logFile = _layout == JsonLogLayout.Ndjson
-                ? Path.Combine(_logDirectory, $"{date}.ndjson")
-                : Path.Combine(_logDirectory, $"{date}.json");
-
-            lock (LogFileSync.GetLock(logFile))
+            if (_options.DestinationMode != LogDestinationMode.CentralOnly)
             {
-                if (_layout == JsonLogLayout.Ndjson)
-                    AppendNdjsonLine(logFile, entry);
-                else
-                    RewritePrettyArray(logFile, entry);
+                Directory.CreateDirectory(_logDirectory);
+                string date   = $"{DateTime.Now:yyyy-MM-dd}";
+                string logFile = _layout == JsonLogLayout.Ndjson
+                    ? Path.Combine(_logDirectory, $"{date}.ndjson")
+                    : Path.Combine(_logDirectory, $"{date}.json");
+
+                lock (LogFileSync.GetLock(logFile))
+                {
+                    if (_layout == JsonLogLayout.Ndjson)
+                        AppendNdjsonLine(logFile, entry);
+                    else
+                        RewritePrettyArray(logFile, entry);
+                }
             }
+
+            CentralLogSender.TrySend(_options, LogFormat.Json, entry);
         }
 
         private static void AppendNdjsonLine(string logFile, LogEntry entry)
@@ -338,6 +403,7 @@ namespace EasyLog
     public class XmlLogger : ILogger
     {
         private readonly string _logDirectory;
+        private readonly LoggerOptions _options;
 
         /// <summary>Root envelope for persisted XML entries.</summary>
         [XmlRoot("LogEntries")]
@@ -354,8 +420,13 @@ namespace EasyLog
 
         /// <summary>Test constructor — uses the provided directory.</summary>
         public XmlLogger(string logDirectory)
+            : this(logDirectory, new LoggerOptions())
+        { }
+
+        public XmlLogger(string logDirectory, LoggerOptions options)
         {
             _logDirectory = logDirectory;
+            _options      = options;
         }
 
         /// <inheritdoc/>
@@ -378,30 +449,35 @@ namespace EasyLog
                 EncryptionTimeMs = encryptionTimeMs
             };
 
-            var serializer = new XmlSerializer(typeof(LogEntryList));
-
-            Directory.CreateDirectory(_logDirectory);
-            string logFile = Path.Combine(_logDirectory, $"{DateTime.Now:yyyy-MM-dd}.xml");
-
-            lock (LogFileSync.GetLock(logFile))
+            if (_options.DestinationMode != LogDestinationMode.CentralOnly)
             {
-                var list = new LogEntryList();
-                if (File.Exists(logFile))
+                var serializer = new XmlSerializer(typeof(LogEntryList));
+
+                Directory.CreateDirectory(_logDirectory);
+                string logFile = Path.Combine(_logDirectory, $"{DateTime.Now:yyyy-MM-dd}.xml");
+
+                lock (LogFileSync.GetLock(logFile))
                 {
-                    try
+                    var list = new LogEntryList();
+                    if (File.Exists(logFile))
                     {
-                        using var reader = new FileStream(logFile, FileMode.Open, FileAccess.Read, FileShare.Read);
-                        list = (LogEntryList?)serializer.Deserialize(reader) ?? new LogEntryList();
+                        try
+                        {
+                            using var reader = new FileStream(logFile, FileMode.Open, FileAccess.Read, FileShare.Read);
+                            list = (LogEntryList?)serializer.Deserialize(reader) ?? new LogEntryList();
+                        }
+                        catch { list = new LogEntryList(); }
                     }
-                    catch { list = new LogEntryList(); }
+
+                    list.Entries.Add(entry);
+
+                    using var ms = new MemoryStream();
+                    serializer.Serialize(ms, list);
+                    LogPathFormatter.WriteAtomic(logFile, ms.ToArray());
                 }
-
-                list.Entries.Add(entry);
-
-                using var ms = new MemoryStream();
-                serializer.Serialize(ms, list);
-                LogPathFormatter.WriteAtomic(logFile, ms.ToArray());
             }
+
+            CentralLogSender.TrySend(_options, LogFormat.Xml, entry);
         }
     }
 
@@ -422,10 +498,11 @@ namespace EasyLog
         public static ILogger Create(LogFormat format, LoggerOptions? options)
         {
             string dir = LogDirectoryResolver.Resolve(options?.LogDirectory);
+            var opts = options ?? new LoggerOptions();
             return format switch
             {
-                LogFormat.Xml => new XmlLogger(dir),
-                _             => new JsonLogger(dir, options?.JsonLogLayout ?? JsonLogLayout.PrettyArray)
+                LogFormat.Xml => new XmlLogger(dir, opts),
+                _             => new JsonLogger(dir, opts.JsonLogLayout, opts)
             };
         }
     }

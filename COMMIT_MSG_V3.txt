@@ -1,0 +1,7 @@
+﻿feat(v3): implement parallel scheduler, runtime controls, and centralized Docker logging
+
+Deliver the EasySave 3.0 feature set across core engine, GUI, console settings, and infrastructure.
+This includes parallel job execution with global priority/large-file coordination, per-job and global pause/resume/stop controls, business-software auto-pause/resume, CryptoSoft process-level mono-instance enforcement, and configurable local/central/dual log routing with a Docker-ready central log collector.
+
+Also adds livrable-oriented validation assets (demo guide) and extends persisted settings/localization for V3 operations.
+All updated tests pass locally after changes.

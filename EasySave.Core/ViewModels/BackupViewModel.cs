@@ -1,6 +1,9 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 using EasySave.Core.Models;
 using EasySave.Core.Services;
 using EasyLog;
@@ -22,6 +25,13 @@ namespace EasySave.Core.ViewModels
         private readonly BusinessSoftwareService _businessSoftware;
         private readonly List<BackupState>       _states;
         private ILogger _logger = null!;
+        private readonly ConcurrentDictionary<int, JobRunControl> _runControls = new();
+
+        private sealed class JobRunControl
+        {
+            public CancellationTokenSource Cts { get; } = new();
+            public volatile bool PauseRequested;
+        }
 
         public List<BackupJob> Jobs { get; private set; }
 
@@ -53,7 +63,10 @@ namespace EasySave.Core.ViewModels
             _logger = LoggerFactory.Create(Settings.LogFormat, new LoggerOptions
             {
                 LogDirectory   = Settings.LogDirectory,
-                JsonLogLayout  = Settings.JsonLogLayout
+                JsonLogLayout  = Settings.JsonLogLayout,
+                DestinationMode = Settings.LogDestinationMode,
+                CentralLogEndpoint = Settings.CentralLogEndpoint,
+                CentralClientId = Settings.CentralClientId
             });
         }
 
@@ -142,12 +155,15 @@ namespace EasySave.Core.ViewModels
             if (!ExecutionGate.Wait(0))
                 return (false, "execution_busy");
 
+            var control = _runControls.GetOrAdd(idx, _ => new JobRunControl());
             try
             {
                 BackupService svc = CreateBackupService();
                 try
                 {
-                    bool ok = svc.Execute(Jobs[idx], idx, Settings, cancellationToken);
+                    using var linked = CancellationTokenSource.CreateLinkedTokenSource(
+                        cancellationToken, control.Cts.Token);
+                    bool ok = svc.Execute(Jobs[idx], idx, Settings, linked.Token, () => control.PauseRequested);
                     return (ok, ok ? string.Empty : "errors");
                 }
                 catch (OperationCanceledException)
@@ -161,11 +177,12 @@ namespace EasySave.Core.ViewModels
             }
             finally
             {
+                _runControls.TryRemove(idx, out _);
                 ExecutionGate.Release();
             }
         }
 
-        /// <summary>Runs all jobs sequentially under a single acquisition of the execution gate.</summary>
+        /// <summary>Runs all jobs in parallel under a single acquisition of the execution gate.</summary>
         public (bool AllSuccess, List<string> Errors) ExecuteAllJobs(
             CancellationToken cancellationToken = default)
         {
@@ -182,50 +199,63 @@ namespace EasySave.Core.ViewModels
             if (!ExecutionGate.Wait(0))
                 return (false, new List<string> { "execution_busy" });
 
-            bool      allOk = true;
-            var       errors = new List<string>();
+            int allOkFlag = 1;
+            var  errors = new ConcurrentBag<string>();
             try
             {
-                BackupService svc = CreateBackupService();
+                var tasks = new List<Task>();
                 for (int i = 0; i < Jobs.Count; i++)
                 {
-                    try
+                    int idx = i;
+                    tasks.Add(Task.Run(() =>
                     {
-                        bool ok = svc.Execute(Jobs[i], i, Settings, cancellationToken);
-                        if (!ok)
+                        BackupService svc = CreateBackupService();
+                        var control = _runControls.GetOrAdd(idx, _ => new JobRunControl());
+                        try
                         {
-                            allOk = false;
-                            errors.Add($"{Jobs[i].Name}: completed with errors");
+                            using var linked = CancellationTokenSource.CreateLinkedTokenSource(
+                                cancellationToken, control.Cts.Token);
+                            bool ok = svc.Execute(Jobs[idx], idx, Settings, linked.Token, () => control.PauseRequested);
+                            if (!ok)
+                            {
+                                Interlocked.Exchange(ref allOkFlag, 0);
+                                errors.Add($"{Jobs[idx].Name}: completed with errors");
+                            }
                         }
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        allOk = false;
-                        errors.Add($"{Jobs[i].Name}: cancelled");
-                        break;
-                    }
-                    catch (Exception ex)
-                    {
-                        allOk = false;
-                        errors.Add($"{Jobs[i].Name}: {ex.Message}");
-                    }
+                        catch (OperationCanceledException)
+                        {
+                            Interlocked.Exchange(ref allOkFlag, 0);
+                            errors.Add($"{Jobs[idx].Name}: cancelled");
+                        }
+                        catch (Exception ex)
+                        {
+                            Interlocked.Exchange(ref allOkFlag, 0);
+                            errors.Add($"{Jobs[idx].Name}: {ex.Message}");
+                        }
+                        finally
+                        {
+                            _runControls.TryRemove(idx, out _);
+                        }
+                    }, cancellationToken));
                 }
+
+                Task.WaitAll(tasks.ToArray());
             }
             finally
             {
                 ExecutionGate.Release();
             }
 
-            return (allOk, errors);
+            return (allOkFlag == 1, errors.ToList());
         }
 
-        /// <summary>Runs selected jobs (CLI / range) with one gate acquisition.</summary>
+        /// <summary>Runs selected jobs in parallel (CLI / range) with one gate acquisition.</summary>
         public (bool AllSuccess, List<string> Errors) ExecuteJobs(
             IEnumerable<int> oneBasedIndices,
             CancellationToken cancellationToken = default)
         {
-            bool allOk = true;
-            var  errors = new List<string>();
+            int allOkFlag = 1;
+            var  errors = new ConcurrentBag<string>();
             var  indices = new List<int>();
 
             foreach (int oneIdx in oneBasedIndices)
@@ -234,7 +264,7 @@ namespace EasySave.Core.ViewModels
                 if (idx < 0 || idx >= Jobs.Count)
                 {
                     errors.Add($"Index {oneIdx} out of range");
-                    allOk = false;
+                    Interlocked.Exchange(ref allOkFlag, 0);
                     continue;
                 }
 
@@ -242,16 +272,16 @@ namespace EasySave.Core.ViewModels
             }
 
             if (indices.Count == 0)
-                return (allOk, errors);
+                return (allOkFlag == 1, errors.ToList());
 
             foreach (int idx in indices)
             {
                 BackupPreflight.Result pf = BackupPreflight.Validate(Jobs[idx]);
                 if (!pf.Ok)
                 {
-                    allOk = false;
+                    Interlocked.Exchange(ref allOkFlag, 0);
                     errors.Add($"{Jobs[idx].Name}: {pf.ErrorKey}");
-                    return (allOk, errors);
+                    return (allOkFlag == 1, errors.ToList());
                 }
             }
 
@@ -260,41 +290,109 @@ namespace EasySave.Core.ViewModels
 
             try
             {
-                BackupService svc = CreateBackupService();
+                var tasks = new List<Task>();
                 foreach (int idx in indices)
                 {
-                    try
+                    int localIdx = idx;
+                    tasks.Add(Task.Run(() =>
                     {
-                        bool ok = svc.Execute(Jobs[idx], idx, Settings, cancellationToken);
-                        if (!ok)
+                        BackupService svc = CreateBackupService();
+                        var control = _runControls.GetOrAdd(localIdx, _ => new JobRunControl());
+                        try
                         {
-                            allOk = false;
-                            errors.Add($"{Jobs[idx].Name}: completed with errors");
+                            using var linked = CancellationTokenSource.CreateLinkedTokenSource(
+                                cancellationToken, control.Cts.Token);
+                            bool ok = svc.Execute(
+                                Jobs[localIdx], localIdx, Settings, linked.Token, () => control.PauseRequested);
+                            if (!ok)
+                            {
+                                Interlocked.Exchange(ref allOkFlag, 0);
+                                errors.Add($"{Jobs[localIdx].Name}: completed with errors");
+                            }
                         }
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        allOk = false;
-                        errors.Add($"{Jobs[idx].Name}: cancelled");
-                        break;
-                    }
-                    catch (Exception ex)
-                    {
-                        allOk = false;
-                        errors.Add($"{Jobs[idx].Name}: {ex.Message}");
-                    }
+                        catch (OperationCanceledException)
+                        {
+                            Interlocked.Exchange(ref allOkFlag, 0);
+                            errors.Add($"{Jobs[localIdx].Name}: cancelled");
+                        }
+                        catch (Exception ex)
+                        {
+                            Interlocked.Exchange(ref allOkFlag, 0);
+                            errors.Add($"{Jobs[localIdx].Name}: {ex.Message}");
+                        }
+                        finally
+                        {
+                            _runControls.TryRemove(localIdx, out _);
+                        }
+                    }, cancellationToken));
                 }
+
+                Task.WaitAll(tasks.ToArray());
             }
             finally
             {
                 ExecutionGate.Release();
             }
 
-            return (allOk, errors);
+            return (allOkFlag == 1, errors.ToList());
         }
 
         private BackupService CreateBackupService() =>
             new BackupService(_stateService, _states, _logger, _businessSoftware);
+
+        /// <summary>Requests pause for one running job (1-based index).</summary>
+        public bool PauseJob(int oneBasedIndex)
+        {
+            int idx = oneBasedIndex - 1;
+            if (_runControls.TryGetValue(idx, out JobRunControl? ctl))
+            {
+                ctl.PauseRequested = true;
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>Requests resume for one paused/running job (1-based index).</summary>
+        public bool ResumeJob(int oneBasedIndex)
+        {
+            int idx = oneBasedIndex - 1;
+            if (_runControls.TryGetValue(idx, out JobRunControl? ctl))
+            {
+                ctl.PauseRequested = false;
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>Requests immediate stop/cancel for one running job (1-based index).</summary>
+        public bool StopJob(int oneBasedIndex)
+        {
+            int idx = oneBasedIndex - 1;
+            if (_runControls.TryGetValue(idx, out JobRunControl? ctl))
+            {
+                ctl.Cts.Cancel();
+                return true;
+            }
+            return false;
+        }
+
+        public void PauseAllJobs()
+        {
+            foreach (JobRunControl c in _runControls.Values)
+                c.PauseRequested = true;
+        }
+
+        public void ResumeAllJobs()
+        {
+            foreach (JobRunControl c in _runControls.Values)
+                c.PauseRequested = false;
+        }
+
+        public void StopAllJobs()
+        {
+            foreach (JobRunControl c in _runControls.Values)
+                c.Cts.Cancel();
+        }
 
         private void Persist()
         {

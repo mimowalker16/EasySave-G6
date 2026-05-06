@@ -71,6 +71,32 @@ namespace EasySave.Core.Services
         [JsonPropertyName("JsonLogLayout")]
         public JsonLogLayout JsonLogLayout { get; set; } = JsonLogLayout.PrettyArray;
 
+        /// <summary>Log destination mode: local, central, or both.</summary>
+        [JsonPropertyName("LogDestinationMode")]
+        public LogDestinationMode LogDestinationMode { get; set; } = LogDestinationMode.LocalOnly;
+
+        /// <summary>Central log collector endpoint (HTTP), e.g. http://localhost:8080/api/logs.</summary>
+        [JsonPropertyName("CentralLogEndpoint")]
+        public string CentralLogEndpoint { get; set; } = string.Empty;
+
+        /// <summary>Optional client identifier for centralized logs.</summary>
+        [JsonPropertyName("CentralClientId")]
+        public string CentralClientId { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Extensions that are globally considered priority for V3 scheduling.
+        /// Non-priority files must wait while at least one priority file remains pending.
+        /// </summary>
+        [JsonPropertyName("PriorityExtensions")]
+        public List<string> PriorityExtensions { get; set; } = new();
+
+        /// <summary>
+        /// Threshold in kilobytes used to throttle parallel transfers of large files.
+        /// If &lt;= 0, the large-file parallel restriction is disabled.
+        /// </summary>
+        [JsonPropertyName("LargeFileThresholdKb")]
+        public long LargeFileThresholdKb { get; set; } = 0;
+
         /// <summary>
         /// File extensions that should be encrypted via CryptoSoft (e.g. ".txt", ".docx").
         /// </summary>

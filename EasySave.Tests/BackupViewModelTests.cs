@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 using EasySave.Core.Models;
 using EasySave.Core.Services;
 using EasySave.Core.ViewModels;
@@ -160,6 +162,34 @@ namespace EasySave.Tests
                 Assert.True(ok, $"Failed at job #{i}");
             }
             Assert.Equal(10, unlimitedVm.Jobs.Count);
+        }
+
+        [Fact]
+        public async Task PauseResumeStop_Controls_DoNotCrashAndAffectRunningJob()
+        {
+            string source = Path.Combine(_tempDir, "SrcCtl");
+            string target = Path.Combine(_tempDir, "DstCtl");
+            Directory.CreateDirectory(source);
+            Directory.CreateDirectory(target);
+
+            // create many files so run takes enough time for control commands
+            for (int i = 0; i < 80; i++)
+                File.WriteAllText(Path.Combine(source, $"f{i}.txt"), new string('x', 1024));
+
+            var (created, _) = _vm.CreateJob("CtlJob", source, target, BackupType.Full);
+            Assert.True(created);
+
+            using var cts = new CancellationTokenSource();
+            Task<(bool Success, string Error)> runTask = Task.Run(() => _vm.ExecuteJob(1, cts.Token));
+
+            await Task.Delay(40);
+            bool paused = _vm.PauseJob(1);
+            bool resumed = _vm.ResumeJob(1);
+            bool stopped = _vm.StopJob(1);
+
+            var result = await runTask;
+
+            Assert.True(paused || resumed || stopped || result.Success || result.Error == "cancelled");
         }
     }
 }

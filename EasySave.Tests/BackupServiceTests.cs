@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Threading;
 using EasySave.Core.Models;
 using EasySave.Core.Services;
 using EasyLog;
@@ -134,12 +135,15 @@ namespace EasySave.Tests
         // ── Business software blocking ────────────────────────────────────────
 
         [Fact]
-        public void Execute_BusinessSoftwareRunning_ThrowsInvalidOperationException()
+        public void Execute_BusinessSoftwareRunning_PausesUntilCancelled()
         {
-            // "System" is always running on Windows
+            // "System" is always running on Windows.
+            // In V3 this should pause transfers instead of throwing immediately.
+            File.WriteAllText(Path.Combine(_sourceDir, "blocked.txt"), "data");
             var settings = MakeSettings(businessSoftware: "System");
             var svc = BuildService();
-            Assert.Throws<InvalidOperationException>(() => svc.Execute(MakeJob(), 0, settings));
+            using var cts = new CancellationTokenSource(millisecondsDelay: 250);
+            Assert.Throws<OperationCanceledException>(() => svc.Execute(MakeJob(), 0, settings, cts.Token));
         }
 
         [Fact]
@@ -151,5 +155,6 @@ namespace EasySave.Tests
             bool ok = svc.Execute(MakeJob(), 0, settings);
             Assert.True(ok);
         }
+
     }
 }

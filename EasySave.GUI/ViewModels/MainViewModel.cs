@@ -97,6 +97,11 @@ namespace EasySave.GUI.ViewModels
         private int    _logFormatIndex;   // 0=JSON, 1=XML
         private string _logDirectoryText = string.Empty;
         private int    _jsonLayoutIndex;  // 0=Pretty array, 1=NDJSON (.ndjson)
+        private int    _logDestinationModeIndex; // 0 local,1 central,2 both
+        private string _centralLogEndpoint = string.Empty;
+        private string _centralClientId = string.Empty;
+        private string _priorityExtensionsText = string.Empty;
+        private long   _largeFileThresholdKb;
         private string _businessSoftware = string.Empty;
         private string _encryptedExtensionsText = string.Empty;
 
@@ -184,6 +189,36 @@ namespace EasySave.GUI.ViewModels
             set { _jsonLayoutIndex = value; OnPropertyChanged(); }
         }
 
+        public int LogDestinationModeIndex
+        {
+            get => _logDestinationModeIndex;
+            set { _logDestinationModeIndex = value; OnPropertyChanged(); }
+        }
+
+        public string CentralLogEndpoint
+        {
+            get => _centralLogEndpoint;
+            set { _centralLogEndpoint = value; OnPropertyChanged(); }
+        }
+
+        public string CentralClientId
+        {
+            get => _centralClientId;
+            set { _centralClientId = value; OnPropertyChanged(); }
+        }
+
+        public string PriorityExtensionsText
+        {
+            get => _priorityExtensionsText;
+            set { _priorityExtensionsText = value; OnPropertyChanged(); }
+        }
+
+        public long LargeFileThresholdKb
+        {
+            get => _largeFileThresholdKb;
+            set { _largeFileThresholdKb = value; OnPropertyChanged(); }
+        }
+
         public string BusinessSoftware
         {
             get => _businessSoftware;
@@ -210,6 +245,12 @@ namespace EasySave.GUI.ViewModels
         public ICommand SaveSettingsCommand { get; }
         public ICommand NavigateCommand   { get; }
         public ICommand CancelRunCommand { get; }
+        public ICommand PauseJobCommand { get; }
+        public ICommand ResumeJobCommand { get; }
+        public ICommand StopJobCommand { get; }
+        public ICommand PauseAllCommand { get; }
+        public ICommand ResumeAllCommand { get; }
+        public ICommand StopAllCommand { get; }
 
         public MainViewModel(BackupViewModel core)
         {
@@ -219,6 +260,16 @@ namespace EasySave.GUI.ViewModels
             LogFormatIndex           = core.Settings.LogFormat == LogFormat.Xml ? 1 : 0;
             LogDirectoryText         = core.Settings.LogDirectory ?? string.Empty;
             JsonLayoutIndex          = core.Settings.JsonLogLayout == JsonLogLayout.Ndjson ? 1 : 0;
+            LogDestinationModeIndex  = core.Settings.LogDestinationMode switch
+            {
+                LogDestinationMode.CentralOnly => 1,
+                LogDestinationMode.LocalAndCentral => 2,
+                _ => 0
+            };
+            CentralLogEndpoint       = core.Settings.CentralLogEndpoint;
+            CentralClientId          = core.Settings.CentralClientId;
+            PriorityExtensionsText   = string.Join(",", core.Settings.PriorityExtensions);
+            LargeFileThresholdKb     = core.Settings.LargeFileThresholdKb;
             BusinessSoftware         = core.Settings.BusinessSoftwareName;
             EncryptedExtensionsText  = string.Join(",", core.Settings.EncryptedExtensions);
 
@@ -233,6 +284,12 @@ namespace EasySave.GUI.ViewModels
             SaveSettingsCommand = new RelayCommand(_ => SaveSettings(), _ => !IsBusy);
             NavigateCommand    = new RelayCommand(o => CurrentPage = o?.ToString() ?? "Jobs");
             CancelRunCommand   = new RelayCommand(_ => CancelRun(), _ => IsBusy);
+            PauseJobCommand    = new RelayCommand(PauseJob);
+            ResumeJobCommand   = new RelayCommand(ResumeJob);
+            StopJobCommand     = new RelayCommand(StopJob);
+            PauseAllCommand    = new RelayCommand(_ => PauseAllJobs());
+            ResumeAllCommand   = new RelayCommand(_ => ResumeAllJobs());
+            StopAllCommand     = new RelayCommand(_ => StopAllJobs());
 
             RefreshJobRows();
         }
@@ -281,6 +338,64 @@ namespace EasySave.GUI.ViewModels
         {
             _runCts?.Cancel();
             StatusMessage = "Cancelling — will stop after the current file operation…";
+        }
+
+        private void PauseJob(object? parameter)
+        {
+            if (parameter is not JobRow row) return;
+            if (_core.PauseJob(row.Index))
+            {
+                row.Status = "Paused";
+                StatusMessage = $"⏸ Job '{row.Name}' paused.";
+            }
+        }
+
+        private void ResumeJob(object? parameter)
+        {
+            if (parameter is not JobRow row) return;
+            if (_core.ResumeJob(row.Index))
+            {
+                row.Status = "Running…";
+                StatusMessage = $"▶ Job '{row.Name}' resumed.";
+            }
+        }
+
+        private void StopJob(object? parameter)
+        {
+            if (parameter is not JobRow row) return;
+            if (_core.StopJob(row.Index))
+            {
+                row.Status = "Canceled";
+                StatusMessage = $"◼ Job '{row.Name}' stop requested.";
+            }
+        }
+
+        private void PauseAllJobs()
+        {
+            _core.PauseAllJobs();
+            foreach (var row in JobRows)
+                if (row.Status.StartsWith("Running", StringComparison.OrdinalIgnoreCase))
+                    row.Status = "Paused";
+            StatusMessage = "⏸ Pause requested for all running jobs.";
+        }
+
+        private void ResumeAllJobs()
+        {
+            _core.ResumeAllJobs();
+            foreach (var row in JobRows)
+                if (row.Status.StartsWith("Paused", StringComparison.OrdinalIgnoreCase))
+                    row.Status = "Running…";
+            StatusMessage = "▶ Resume requested for all paused jobs.";
+        }
+
+        private void StopAllJobs()
+        {
+            _core.StopAllJobs();
+            foreach (var row in JobRows)
+                if (row.Status.StartsWith("Running", StringComparison.OrdinalIgnoreCase) ||
+                    row.Status.StartsWith("Paused", StringComparison.OrdinalIgnoreCase))
+                    row.Status = "Canceled";
+            StatusMessage = "◼ Stop requested for all jobs.";
         }
 
         /// <summary>Executes a single backup on a pool thread so the WPF window stays responsive.</summary>
@@ -412,11 +527,33 @@ namespace EasySave.GUI.ViewModels
                 LogFormat            = LogFormatIndex == 1 ? LogFormat.Xml : LogFormat.Json,
                 LogDirectory         = LogDirectoryText.Trim(),
                 JsonLogLayout        = JsonLayoutIndex == 1 ? JsonLogLayout.Ndjson : JsonLogLayout.PrettyArray,
+                LogDestinationMode   = LogDestinationModeIndex switch
+                {
+                    1 => LogDestinationMode.CentralOnly,
+                    2 => LogDestinationMode.LocalAndCentral,
+                    _ => LogDestinationMode.LocalOnly
+                },
+                CentralLogEndpoint   = CentralLogEndpoint.Trim(),
+                CentralClientId      = CentralClientId.Trim(),
+                PriorityExtensions   = ParseExtensions(PriorityExtensionsText),
+                LargeFileThresholdKb = LargeFileThresholdKb < 0 ? 0 : LargeFileThresholdKb,
                 EncryptedExtensions  = extensions,
                 BusinessSoftwareName = BusinessSoftware.Trim()
             };
             _core.UpdateSettings(settings);
             StatusMessage = "✔ Settings saved.";
+        }
+
+        private static List<string> ParseExtensions(string rawText)
+        {
+            var result = new List<string>();
+            foreach (string raw in rawText.Split(',', StringSplitOptions.RemoveEmptyEntries))
+            {
+                string ext = raw.Trim().ToLowerInvariant();
+                if (string.IsNullOrEmpty(ext)) continue;
+                result.Add(ext.StartsWith('.') ? ext : "." + ext);
+            }
+            return result;
         }
 
         // ── Helpers ────────────────────────────────────────────────────────
