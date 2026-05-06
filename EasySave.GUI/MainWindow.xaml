@@ -155,6 +155,18 @@
                                     Style="{StaticResource SuccessBtn}"
                                     Command="{Binding ExecuteAllCommand}"
                                     Margin="0,0,8,0"/>
+                            <Button Content="⏸  Pause All"
+                                    Style="{StaticResource GhostBtn}"
+                                    Command="{Binding PauseAllCommand}"
+                                    Margin="0,0,8,0"/>
+                            <Button Content="▶  Resume All"
+                                    Style="{StaticResource GhostBtn}"
+                                    Command="{Binding ResumeAllCommand}"
+                                    Margin="0,0,8,0"/>
+                            <Button Content="◼  Stop All"
+                                    Style="{StaticResource DangerBtn}"
+                                    Command="{Binding StopAllCommand}"
+                                    Margin="0,0,8,0"/>
                             <Button Content="◼  Cancel"
                                     Style="{StaticResource DangerBtn}"
                                     Command="{Binding CancelRunCommand}"
@@ -259,6 +271,30 @@
                                                     Padding="10,6"
                                                     ToolTip="Delete this job"
                                                     Command="{Binding DataContext.DeleteJobCommand,
+                                                              RelativeSource={RelativeSource AncestorType=Window}}"
+                                                    CommandParameter="{Binding}"/>
+                                            <Button Content="⏸"
+                                                    Style="{StaticResource GhostBtn}"
+                                                    Padding="10,6"
+                                                    Margin="6,0,0,0"
+                                                    ToolTip="Pause this job"
+                                                    Command="{Binding DataContext.PauseJobCommand,
+                                                              RelativeSource={RelativeSource AncestorType=Window}}"
+                                                    CommandParameter="{Binding}"/>
+                                            <Button Content="▶"
+                                                    Style="{StaticResource GhostBtn}"
+                                                    Padding="10,6"
+                                                    Margin="6,0,0,0"
+                                                    ToolTip="Resume this job"
+                                                    Command="{Binding DataContext.ResumeJobCommand,
+                                                              RelativeSource={RelativeSource AncestorType=Window}}"
+                                                    CommandParameter="{Binding}"/>
+                                            <Button Content="◼"
+                                                    Style="{StaticResource DangerBtn}"
+                                                    Padding="10,6"
+                                                    Margin="6,0,0,0"
+                                                    ToolTip="Stop this job"
+                                                    Command="{Binding DataContext.StopJobCommand,
                                                               RelativeSource={RelativeSource AncestorType=Window}}"
                                                     CommandParameter="{Binding}"/>
                                         </StackPanel>
@@ -427,6 +463,73 @@
                             <TextBox Style="{StaticResource ModernTextBox}"
                                      Text="{Binding BusinessSoftware, UpdateSourceTrigger=PropertyChanged}"
                                      Width="300" HorizontalAlignment="Left"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- V3 Parallel / scheduling settings -->
+                    <Border Background="{StaticResource BgCard}"
+                            BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="1" CornerRadius="10"
+                            Padding="20,18" Margin="0,0,0,14">
+                        <StackPanel>
+                            <TextBlock Text="V3 Scheduling"
+                                       FontSize="14" FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextPrimary}"/>
+                            <TextBlock Text="Priority extensions are processed before any non-priority files across all running jobs."
+                                       FontSize="12"
+                                       Foreground="{StaticResource TextSecondary}"
+                                       Margin="0,4,0,8"
+                                       TextWrapping="Wrap"/>
+                            <TextBox Style="{StaticResource ModernTextBox}"
+                                     Text="{Binding PriorityExtensionsText, UpdateSourceTrigger=PropertyChanged}"
+                                     Width="340" HorizontalAlignment="Left"/>
+                            <TextBlock Text="Large file threshold (KB) — only one transfer above this size can run at a time."
+                                       FontSize="12"
+                                       Foreground="{StaticResource TextSecondary}"
+                                       Margin="0,10,0,8"
+                                       TextWrapping="Wrap"/>
+                            <TextBox Style="{StaticResource ModernTextBox}"
+                                     Text="{Binding LargeFileThresholdKb, UpdateSourceTrigger=PropertyChanged}"
+                                     Width="200" HorizontalAlignment="Left"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Centralized log settings -->
+                    <Border Background="{StaticResource BgCard}"
+                            BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="1" CornerRadius="10"
+                            Padding="20,18" Margin="0,0,0,14">
+                        <StackPanel>
+                            <TextBlock Text="Centralized Logging (Docker service)"
+                                       FontSize="14" FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextPrimary}"/>
+                            <TextBlock Text="Choose where logs are stored: local files, central server, or both."
+                                       FontSize="12"
+                                       Foreground="{StaticResource TextSecondary}"
+                                       Margin="0,4,0,8"
+                                       TextWrapping="Wrap"/>
+                            <ComboBox Style="{StaticResource ModernComboBox}"
+                                      SelectedIndex="{Binding LogDestinationModeIndex}"
+                                      Width="340" HorizontalAlignment="Left">
+                                <ComboBoxItem Content="Local only" Foreground="{StaticResource TextPrimary}"/>
+                                <ComboBoxItem Content="Central only" Foreground="{StaticResource TextPrimary}"/>
+                                <ComboBoxItem Content="Local + Central" Foreground="{StaticResource TextPrimary}"/>
+                            </ComboBox>
+                            <TextBlock Text="Central endpoint (example: http://localhost:8080/api/logs)"
+                                       FontSize="12"
+                                       Foreground="{StaticResource TextSecondary}"
+                                       Margin="0,10,0,8"
+                                       TextWrapping="Wrap"/>
+                            <TextBox Style="{StaticResource ModernTextBox}"
+                                     Text="{Binding CentralLogEndpoint, UpdateSourceTrigger=PropertyChanged}"
+                                     Width="480" HorizontalAlignment="Left"/>
+                            <TextBlock Text="Client ID (optional)"
+                                       FontSize="12"
+                                       Foreground="{StaticResource TextSecondary}"
+                                       Margin="0,10,0,8"/>
+                            <TextBox Style="{StaticResource ModernTextBox}"
+                                     Text="{Binding CentralClientId, UpdateSourceTrigger=PropertyChanged}"
+                                     Width="280" HorizontalAlignment="Left"/>
                         </StackPanel>
                     </Border>
 

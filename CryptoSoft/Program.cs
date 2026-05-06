@@ -17,11 +17,14 @@
 
 using System;
 using System.IO;
+using System.Threading;
 
 namespace CryptoSoft
 {
     internal static class Program
     {
+        private const string SingleInstanceMutexName = @"Global\EasySave_CryptoSoft_SingleInstance";
+
         // Clé XOR 32 octets (256 bits).  Modifiez-la pour personnaliser.
         private static readonly byte[] Key =
         {
@@ -33,6 +36,13 @@ namespace CryptoSoft
 
         private static int Main(string[] args)
         {
+            using var mutex = new Mutex(initiallyOwned: true, name: SingleInstanceMutexName, out bool isOwner);
+            if (!isOwner)
+            {
+                Console.Error.WriteLine("[CryptoSoft] Another CryptoSoft instance is already running.");
+                return 4;
+            }
+
             if (args.Length == 0 || string.IsNullOrWhiteSpace(args[0]))
             {
                 Console.Error.WriteLine("[CryptoSoft] Error: no file path provided.");

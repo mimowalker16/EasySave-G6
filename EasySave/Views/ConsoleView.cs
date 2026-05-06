@@ -251,6 +251,34 @@ namespace EasySave.Views
             string layoutChoice = Prompt("> ").Trim();
             JsonLogLayout jsonLayout = layoutChoice == "2" ? JsonLogLayout.Ndjson : JsonLogLayout.PrettyArray;
 
+            Console.WriteLine(_lang.Get("prompt_log_destination_mode"));
+            string destinationChoice = Prompt("> ").Trim();
+            LogDestinationMode destinationMode = destinationChoice switch
+            {
+                "2" => LogDestinationMode.CentralOnly,
+                "3" => LogDestinationMode.LocalAndCentral,
+                _ => LogDestinationMode.LocalOnly
+            };
+
+            string centralEndpoint = PromptOrKeep(
+                _lang.Get("prompt_central_endpoint"),
+                _vm.Settings.CentralLogEndpoint);
+
+            string centralClientId = PromptOrKeep(
+                _lang.Get("prompt_central_client_id"),
+                _vm.Settings.CentralClientId);
+
+            string priorityCsv = PromptOrKeep(
+                _lang.Get("prompt_priority_extensions"),
+                string.Join(",", _vm.Settings.PriorityExtensions));
+
+            string thresholdRaw = PromptOrKeep(
+                _lang.Get("prompt_large_threshold_kb"),
+                _vm.Settings.LargeFileThresholdKb.ToString());
+            long thresholdKb = 0;
+            _ = long.TryParse(thresholdRaw, out thresholdKb);
+            if (thresholdKb < 0) thresholdKb = 0;
+
             // Business software name
             string businessSoftware = PromptOrKeep(
                 _lang.Get("label_business_software"),
@@ -262,6 +290,11 @@ namespace EasySave.Views
                 LogFormat            = newFormat,
                 LogDirectory         = string.IsNullOrWhiteSpace(logDir) ? string.Empty : logDir.Trim(),
                 JsonLogLayout        = jsonLayout,
+                LogDestinationMode   = destinationMode,
+                CentralLogEndpoint   = centralEndpoint.Trim(),
+                CentralClientId      = centralClientId.Trim(),
+                PriorityExtensions   = ParseExtensionsCsv(priorityCsv),
+                LargeFileThresholdKb = thresholdKb,
                 EncryptedExtensions  = _vm.Settings.EncryptedExtensions,
                 BusinessSoftwareName = businessSoftware.Trim()
             };
@@ -393,6 +426,18 @@ namespace EasySave.Views
             if (t == "1" || t.Equals("full", StringComparison.OrdinalIgnoreCase))
                 return BackupType.Full;
             return current;
+        }
+
+        private static List<string> ParseExtensionsCsv(string csv)
+        {
+            var result = new List<string>();
+            foreach (string raw in csv.Split(',', StringSplitOptions.RemoveEmptyEntries))
+            {
+                string ext = raw.Trim().ToLowerInvariant();
+                if (string.IsNullOrEmpty(ext)) continue;
+                result.Add(ext.StartsWith('.') ? ext : "." + ext);
+            }
+            return result;
         }
 
         private int PromptIndex()

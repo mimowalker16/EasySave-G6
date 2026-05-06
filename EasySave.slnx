@@ -4,5 +4,6 @@
   <Project Path="EasySave/EasySave.csproj" />
   <Project Path="EasySave.GUI/EasySave.GUI.csproj" />
   <Project Path="CryptoSoft/CryptoSoft.csproj" />
+  <Project Path="LogCentralizer/LogCentralizer.csproj" />
   <Project Path="EasySave.Tests/EasySave.Tests.csproj" />
 </Solution>

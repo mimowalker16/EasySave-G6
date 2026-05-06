@@ -1,7 +1,9 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using EasySave.Core.Models;
 using EasySave.Core.Strategies;
@@ -17,6 +19,12 @@ namespace EasySave.Core.Services
     {
         private const int CopyBufferBytes            = 262144;
         private const int StateFlushEveryNFiles      = 8;
+        private const int CoordinationSleepMs        = 120;
+
+        // V3 global coordination primitives shared by all jobs in the current process.
+        private static readonly SemaphoreSlim LargeFileTransferSemaphore = new(1, 1);
+        private static readonly SemaphoreSlim CryptoSoftSemaphore        = new(1, 1);
+        private static int _priorityFilesRemaining;
 
         private readonly StateService               _stateService;
         private readonly List<BackupState>          _allStates;
@@ -43,7 +51,8 @@ namespace EasySave.Core.Services
             BackupJob        job,
             int              stateIndex,
             AppSettings      settings,
-            CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken = default,
+            Func<bool>?      userPauseRequested = null)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -51,15 +60,27 @@ namespace EasySave.Core.Services
                 throw new DirectoryNotFoundException(
                     $"Source directory not found: {job.SourceDirectory}");
 
-            if (_businessSoftware.IsRunning(settings.BusinessSoftwareName))
-                throw new InvalidOperationException(
-                    $"Business software '{settings.BusinessSoftwareName}' is running. Backup blocked.");
-
             IBackupStrategy strategy = job.Type == BackupType.Full
                 ? new CompleteBackup()
                 : new DifferentialBackup();
 
             List<(string Source, string Target)> filesToCopy = strategy.CollectFiles(job);
+            var priorityExt = BuildNormalizedExtensionSet(settings.PriorityExtensions);
+            if (priorityExt.Count > 0)
+            {
+                // Prevent self-deadlock: process priority files first within each job.
+                filesToCopy = filesToCopy
+                    .OrderByDescending(f => IsPriorityFile(f.Source, priorityExt))
+                    .ToList();
+            }
+
+            long largeThresholdBytes = settings.LargeFileThresholdKb > 0
+                ? settings.LargeFileThresholdKb * 1024L
+                : -1;
+
+            int localPriorityRemaining = filesToCopy.Count(f => IsPriorityFile(f.Source, priorityExt));
+            if (localPriorityRemaining > 0)
+                Interlocked.Add(ref _priorityFilesRemaining, localPriorityRemaining);
 
             BackupState state = _allStates[stateIndex];
             bool        hasError = false;
@@ -80,16 +101,14 @@ namespace EasySave.Core.Services
                     (string sourceFile, string targetFile) = filesToCopy[fi];
                     cancellationToken.ThrowIfCancellationRequested();
 
-                    if (_businessSoftware.IsRunning(settings.BusinessSoftwareName))
-                    {
-                        _logger.LogTransfer(job.Name, sourceFile, targetFile,
-                            SafeFileLength(sourceFile), -1, 0);
-                        hasError = true;
-                        break;
-                    }
+                    bool isPriority = IsPriorityFile(sourceFile, priorityExt);
+                    WaitForBusinessSoftwarePause(state, settings, cancellationToken);
+                    WaitForPriorityGateIfNeeded(isPriority, state, cancellationToken);
+                    WaitForUserPause(state, cancellationToken, userPauseRequested);
 
                     state.CurrentSourceFile   = sourceFile;
                     state.CurrentTargetFile   = targetFile;
+                    state.State               = BackupStateType.Active;
                     state.LastActionTimestamp = DateTime.Now.ToString("o");
                     PersistStateIfNeeded(ShouldForceAfterFile(fi, filesToCopy.Count));
 
@@ -105,7 +124,19 @@ namespace EasySave.Core.Services
                         if (targetDir != null)
                             Directory.CreateDirectory(targetDir);
 
-                        CopyFileWithCancellation(sourceFile, targetFile, cancellationToken);
+                        bool useLargeSemaphore = largeThresholdBytes > 0 && fileSize > largeThresholdBytes;
+                        if (useLargeSemaphore)
+                            LargeFileTransferSemaphore.Wait(cancellationToken);
+                        try
+                        {
+                            CopyFileWithCancellation(sourceFile, targetFile, cancellationToken);
+                        }
+                        finally
+                        {
+                            if (useLargeSemaphore)
+                                LargeFileTransferSemaphore.Release();
+                        }
+
                         sw.Stop();
                         transferTimeMs = sw.ElapsedMilliseconds;
                     }
@@ -125,6 +156,7 @@ namespace EasySave.Core.Services
                         state.RemainingFiles--;
                         state.RemainingSize -= fileSize;
                         UpdateProgress(state);
+                        MarkPriorityFileAsProcessed(isPriority, ref localPriorityRemaining);
                         continue;
                     }
 
@@ -132,7 +164,16 @@ namespace EasySave.Core.Services
                     if (settings.EncryptedExtensions.Count > 0
                         && settings.EncryptedExtensions.Contains(extension))
                     {
-                        encryptionTimeMs = RunCryptoSoft(targetFile, cancellationToken);
+                        CryptoSoftSemaphore.Wait(cancellationToken);
+                        try
+                        {
+                            encryptionTimeMs = RunCryptoSoft(targetFile, cancellationToken);
+                        }
+                        finally
+                        {
+                            CryptoSoftSemaphore.Release();
+                        }
+
                         if (encryptionTimeMs < 0)
                             hasError = true;
                     }
@@ -143,6 +184,7 @@ namespace EasySave.Core.Services
                     state.RemainingFiles--;
                     state.RemainingSize -= fileSize;
                     UpdateProgress(state);
+                    MarkPriorityFileAsProcessed(isPriority, ref localPriorityRemaining);
 
                     PersistStateIfNeeded(ShouldForceAfterFile(fi, filesToCopy.Count));
                 }
@@ -159,6 +201,82 @@ namespace EasySave.Core.Services
                 state.LastActionTimestamp = DateTime.Now.ToString("o");
                 PersistStateIfNeeded(forceImmediate: true);
                 throw;
+            }
+            finally
+            {
+                // Ensure global priority counter cannot leak on cancellation/errors.
+                if (localPriorityRemaining > 0)
+                    Interlocked.Add(ref _priorityFilesRemaining, -localPriorityRemaining);
+            }
+        }
+
+        private static HashSet<string> BuildNormalizedExtensionSet(IEnumerable<string> exts)
+        {
+            var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (string ext in exts)
+            {
+                if (string.IsNullOrWhiteSpace(ext)) continue;
+                string normalized = ext.Trim().ToLowerInvariant();
+                if (!normalized.StartsWith('.'))
+                    normalized = "." + normalized;
+                set.Add(normalized);
+            }
+            return set;
+        }
+
+        private static bool IsPriorityFile(string path, HashSet<string> priorityExt)
+            => priorityExt.Count > 0 && priorityExt.Contains(Path.GetExtension(path).ToLowerInvariant());
+
+        private static void MarkPriorityFileAsProcessed(bool isPriority, ref int localPriorityRemaining)
+        {
+            if (isPriority)
+            {
+                localPriorityRemaining = Math.Max(0, localPriorityRemaining - 1);
+                Interlocked.Decrement(ref _priorityFilesRemaining);
+            }
+        }
+
+        private void WaitForPriorityGateIfNeeded(bool isPriority, BackupState state, CancellationToken ct)
+        {
+            if (isPriority)
+                return;
+
+            while (Volatile.Read(ref _priorityFilesRemaining) > 0)
+            {
+                ct.ThrowIfCancellationRequested();
+                state.State               = BackupStateType.Paused;
+                state.LastActionTimestamp = DateTime.Now.ToString("o");
+                PersistStateIfNeeded(forceImmediate: false);
+                Thread.Sleep(CoordinationSleepMs);
+            }
+        }
+
+        private void WaitForBusinessSoftwarePause(
+            BackupState state, AppSettings settings, CancellationToken ct)
+        {
+            while (_businessSoftware.IsRunning(settings.BusinessSoftwareName))
+            {
+                ct.ThrowIfCancellationRequested();
+                state.State               = BackupStateType.Paused;
+                state.LastActionTimestamp = DateTime.Now.ToString("o");
+                PersistStateIfNeeded(forceImmediate: false);
+                Thread.Sleep(CoordinationSleepMs);
+            }
+        }
+
+        private void WaitForUserPause(
+            BackupState state, CancellationToken ct, Func<bool>? userPauseRequested)
+        {
+            if (userPauseRequested == null)
+                return;
+
+            while (userPauseRequested())
+            {
+                ct.ThrowIfCancellationRequested();
+                state.State               = BackupStateType.Paused;
+                state.LastActionTimestamp = DateTime.Now.ToString("o");
+                PersistStateIfNeeded(forceImmediate: false);
+                Thread.Sleep(CoordinationSleepMs);
             }
         }
 
