@@ -288,22 +288,12 @@ namespace EasySave.Views
             var updated = new AppSettings
             {
                 LogFormat            = newFormat,
-<<<<<<< Updated upstream
-                LogDirectory         = string.IsNullOrWhiteSpace(logDir) ? string.Empty : logDir.Trim(),
-                JsonLogLayout        = jsonLayout,
-                LogDestinationMode   = destinationMode,
-                CentralLogEndpoint   = centralEndpoint.Trim(),
-                CentralClientId      = centralClientId.Trim(),
-                PriorityExtensions   = ParseExtensionsCsv(priorityCsv),
-                LargeFileThresholdKb = thresholdKb,
-=======
                 LogDirectory         = _vm.Settings.LogDirectory,
                 LogDestinationMode   = _vm.Settings.LogDestinationMode,
                 CentralLogEndpoint   = _vm.Settings.CentralLogEndpoint,
                 CentralClientId      = _vm.Settings.CentralClientId,
                 PriorityExtensions   = _vm.Settings.PriorityExtensions,
                 LargeFileThresholdKb = _vm.Settings.LargeFileThresholdKb,
->>>>>>> Stashed changes
                 EncryptedExtensions  = _vm.Settings.EncryptedExtensions,
                 BusinessSoftwareName = businessSoftware.Trim()
             };

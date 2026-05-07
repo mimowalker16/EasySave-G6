@@ -137,20 +137,11 @@ namespace EasySave.Tests
         [Fact]
         public void Execute_BusinessSoftwareRunning_PausesUntilCancelled()
         {
-<<<<<<< Updated upstream
-            // "System" is always running on Windows.
-            // In V3 this should pause transfers instead of throwing immediately.
-            File.WriteAllText(Path.Combine(_sourceDir, "blocked.txt"), "data");
-            var settings = MakeSettings(businessSoftware: "System");
-            var svc = BuildService();
-            using var cts = new CancellationTokenSource(millisecondsDelay: 250);
-=======
             File.WriteAllText(Path.Combine(_sourceDir, "file.txt"), "data");
             var settings = MakeSettings(businessSoftware: "System");
             var svc = BuildService();
 
             using var cts = new CancellationTokenSource(250);
->>>>>>> Stashed changes
             Assert.Throws<OperationCanceledException>(() => svc.Execute(MakeJob(), 0, settings, cts.Token));
         }
 
