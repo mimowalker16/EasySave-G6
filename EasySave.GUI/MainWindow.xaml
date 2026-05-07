@@ -2,7 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="clr-namespace:EasySave.GUI.ViewModels"
-        Title="EasySave v2.0"
+        Title="EasySave v3.0"
         Width="1100" Height="720"
         MinWidth="900" MinHeight="600"
         WindowStartupLocation="CenterScreen"
@@ -78,7 +78,7 @@
                     <TextBlock Text="💾 EasySave"
                                FontSize="20" FontWeight="Bold"
                                Foreground="{StaticResource TextPrimary}"/>
-                    <TextBlock Text="v2.0 — by ProSoft"
+                    <TextBlock Text="v3.0 — by ProSoft"
                                FontSize="11"
                                Foreground="{StaticResource TextSecondary}"
                                Margin="0,2,0,0"/>
@@ -147,7 +147,7 @@
                                        Foreground="{StaticResource TextSecondary}"
                                        Margin="0,2,0,0">
                                 <Run Text="{Binding JobRows.Count, Mode=OneWay}"/>
-                                <Run Text="job(s) configured — unlimited in v2.0"/>
+                                <Run Text="job(s) configured — parallel in v3.0"/>
                             </TextBlock>
                         </StackPanel>
                         <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
@@ -163,6 +163,7 @@
                                     Style="{StaticResource GhostBtn}"
                                     Command="{Binding ResumeAllCommand}"
                                     Margin="0,0,8,0"/>
+<<<<<<< Updated upstream
                             <Button Content="◼  Stop All"
                                     Style="{StaticResource DangerBtn}"
                                     Command="{Binding StopAllCommand}"
@@ -172,6 +173,12 @@
                                     Command="{Binding CancelRunCommand}"
                                     Margin="0,0,8,0"
                                     ToolTip="Cooperative cancel (after current file)"/>
+=======
+                            <Button Content="■  Stop All"
+                                    Style="{StaticResource DangerBtn}"
+                                    Command="{Binding StopAllCommand}"
+                                    Margin="0,0,8,0"/>
+>>>>>>> Stashed changes
                             <Button Content="＋  New Job"
                                     Style="{StaticResource PrimaryBtn}"
                                     Command="{Binding NewJobCommand}"/>
@@ -269,6 +276,7 @@
                                             <Button Content="🗑"
                                                     Style="{StaticResource DangerBtn}"
                                                     Padding="10,6"
+                                                    Margin="0,0,6,0"
                                                     ToolTip="Delete this job"
                                                     Command="{Binding DataContext.DeleteJobCommand,
                                                               RelativeSource={RelativeSource AncestorType=Window}}"
@@ -276,7 +284,11 @@
                                             <Button Content="⏸"
                                                     Style="{StaticResource GhostBtn}"
                                                     Padding="10,6"
+<<<<<<< Updated upstream
                                                     Margin="6,0,0,0"
+=======
+                                                    Margin="0,0,6,0"
+>>>>>>> Stashed changes
                                                     ToolTip="Pause this job"
                                                     Command="{Binding DataContext.PauseJobCommand,
                                                               RelativeSource={RelativeSource AncestorType=Window}}"
@@ -284,15 +296,25 @@
                                             <Button Content="▶"
                                                     Style="{StaticResource GhostBtn}"
                                                     Padding="10,6"
+<<<<<<< Updated upstream
                                                     Margin="6,0,0,0"
+=======
+                                                    Margin="0,0,6,0"
+>>>>>>> Stashed changes
                                                     ToolTip="Resume this job"
                                                     Command="{Binding DataContext.ResumeJobCommand,
                                                               RelativeSource={RelativeSource AncestorType=Window}}"
                                                     CommandParameter="{Binding}"/>
+<<<<<<< Updated upstream
                                             <Button Content="◼"
                                                     Style="{StaticResource DangerBtn}"
                                                     Padding="10,6"
                                                     Margin="6,0,0,0"
+=======
+                                            <Button Content="■"
+                                                    Style="{StaticResource DangerBtn}"
+                                                    Padding="10,6"
+>>>>>>> Stashed changes
                                                     ToolTip="Stop this job"
                                                     Command="{Binding DataContext.StopJobCommand,
                                                               RelativeSource={RelativeSource AncestorType=Window}}"
@@ -374,7 +396,7 @@
                                FontSize="22" FontWeight="Bold"
                                Foreground="{StaticResource TextPrimary}"
                                Margin="0,0,0,4"/>
-                    <TextBlock Text="Global configuration for EasySave v2.0"
+                    <TextBlock Text="Global configuration for EasySave v3.0"
                                FontSize="12"
                                Foreground="{StaticResource TextSecondary}"
                                Margin="0,0,0,28"/>
@@ -401,16 +423,27 @@
                         </StackPanel>
                     </Border>
 
+<<<<<<< Updated upstream
                     <!-- Log directory -->
+=======
+                    <!-- Log directory card -->
+>>>>>>> Stashed changes
                     <Border Background="{StaticResource BgCard}"
                             BorderBrush="{StaticResource BorderBrush}"
                             BorderThickness="1" CornerRadius="10"
                             Padding="20,18" Margin="0,0,0,14">
                         <StackPanel>
+<<<<<<< Updated upstream
                             <TextBlock Text="Log directory"
                                        FontSize="14" FontWeight="SemiBold"
                                        Foreground="{StaticResource TextPrimary}"/>
                             <TextBlock Text="Leave empty for default (%AppData%\EasySave\Logs). You may use e.g. D:\CompanyBackups\Logs or %ProgramData%\EasySave\Logs."
+=======
+                            <TextBlock Text="Log Directory"
+                                       FontSize="14" FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextPrimary}"/>
+                            <TextBlock Text="Leave empty for the default AppData location."
+>>>>>>> Stashed changes
                                        FontSize="12"
                                        Foreground="{StaticResource TextSecondary}"
                                        Margin="0,4,0,12"
@@ -421,26 +454,87 @@
                         </StackPanel>
                     </Border>
 
+<<<<<<< Updated upstream
                     <!-- JSON layout (ignored for XML logs) -->
+=======
+                    <!-- Centralized logging card -->
+>>>>>>> Stashed changes
                     <Border Background="{StaticResource BgCard}"
                             BorderBrush="{StaticResource BorderBrush}"
                             BorderThickness="1" CornerRadius="10"
                             Padding="20,18" Margin="0,0,0,14">
                         <StackPanel>
+<<<<<<< Updated upstream
                             <TextBlock Text="JSON log layout"
                                        FontSize="14" FontWeight="SemiBold"
                                        Foreground="{StaticResource TextPrimary}"/>
                             <TextBlock Text="Pretty array: one readable JSON array per day. NDJSON: one compact object per line in a .ndjson file (recommended for thousands of files)."
+=======
+                            <TextBlock Text="Centralized Logging"
+                                       FontSize="14" FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextPrimary}"/>
+                            <TextBlock Text="Choose whether daily logs are local, central Docker service, or both."
+>>>>>>> Stashed changes
                                        FontSize="12"
                                        Foreground="{StaticResource TextSecondary}"
                                        Margin="0,4,0,12"
                                        TextWrapping="Wrap"/>
                             <ComboBox Style="{StaticResource ModernComboBox}"
+<<<<<<< Updated upstream
                                       SelectedIndex="{Binding JsonLayoutIndex}"
                                       Width="340" HorizontalAlignment="Left">
                                 <ComboBoxItem Content="Pretty JSON array (*.json)" Foreground="{StaticResource TextPrimary}"/>
                                 <ComboBoxItem Content="Fast NDJSON lines (*.ndjson)" Foreground="{StaticResource TextPrimary}"/>
                             </ComboBox>
+=======
+                                      SelectedIndex="{Binding LogDestinationModeIndex}"
+                                      Width="260" HorizontalAlignment="Left">
+                                <ComboBoxItem Content="Local only" Foreground="{StaticResource TextPrimary}"/>
+                                <ComboBoxItem Content="Central only" Foreground="{StaticResource TextPrimary}"/>
+                                <ComboBoxItem Content="Local + Central" Foreground="{StaticResource TextPrimary}"/>
+                            </ComboBox>
+                            <TextBlock Text="Central endpoint"
+                                       FontSize="12"
+                                       Foreground="{StaticResource TextSecondary}"
+                                       Margin="0,12,0,8"/>
+                            <TextBox Style="{StaticResource ModernTextBox}"
+                                     Text="{Binding CentralLogEndpoint, UpdateSourceTrigger=PropertyChanged}"
+                                     Width="480" HorizontalAlignment="Left"/>
+                            <TextBlock Text="Client ID"
+                                       FontSize="12"
+                                       Foreground="{StaticResource TextSecondary}"
+                                       Margin="0,12,0,8"/>
+                            <TextBox Style="{StaticResource ModernTextBox}"
+                                     Text="{Binding CentralClientId, UpdateSourceTrigger=PropertyChanged}"
+                                     Width="260" HorizontalAlignment="Left"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- V3 scheduling card -->
+                    <Border Background="{StaticResource BgCard}"
+                            BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="1" CornerRadius="10"
+                            Padding="20,18" Margin="0,0,0,14">
+                        <StackPanel>
+                            <TextBlock Text="V3 Scheduling"
+                                       FontSize="14" FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextPrimary}"/>
+                            <TextBlock Text="Priority extensions are processed before non-priority files across running jobs."
+                                       FontSize="12"
+                                       Foreground="{StaticResource TextSecondary}"
+                                       Margin="0,4,0,12"
+                                       TextWrapping="Wrap"/>
+                            <TextBox Style="{StaticResource ModernTextBox}"
+                                     Text="{Binding PriorityExtensionsText, UpdateSourceTrigger=PropertyChanged}"
+                                     Width="340" HorizontalAlignment="Left"/>
+                            <TextBlock Text="Large file threshold (KB)"
+                                       FontSize="12"
+                                       Foreground="{StaticResource TextSecondary}"
+                                       Margin="0,12,0,8"/>
+                            <TextBox Style="{StaticResource ModernTextBox}"
+                                     Text="{Binding LargeFileThresholdKb, UpdateSourceTrigger=PropertyChanged}"
+                                     Width="180" HorizontalAlignment="Left"/>
+>>>>>>> Stashed changes
                         </StackPanel>
                     </Border>
 

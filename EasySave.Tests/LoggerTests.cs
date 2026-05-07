@@ -114,6 +114,7 @@ namespace EasySave.Tests
         }
 
         [Fact]
+<<<<<<< Updated upstream
         public void JsonLogger_Ndjson_AppendsOneLinePerEntry()
         {
             var logger = new JsonLogger(_tempDir, JsonLogLayout.Ndjson);
@@ -127,6 +128,33 @@ namespace EasySave.Tests
             Assert.Equal(2, lines.Length);
             Assert.Contains("J1", lines[0]);
             Assert.Contains("J2", lines[1]);
+=======
+        public void LoggerFactory_WithCustomDirectory_WritesLocalFileThere()
+        {
+            ILogger logger = LoggerFactory.Create(LogFormat.Json, new LoggerOptions
+            {
+                LogDirectory = _tempDir,
+                DestinationMode = LogDestinationMode.LocalOnly
+            });
+
+            logger.LogTransfer("Custom", @"C:\src\a.txt", @"C:\dst\a.txt", 1, 1);
+
+            Assert.Single(Directory.GetFiles(_tempDir, "*.json"));
+        }
+
+        [Fact]
+        public void JsonLogger_CentralOnly_DoesNotWriteLocalFile()
+        {
+            var logger = new JsonLogger(_tempDir, new LoggerOptions
+            {
+                DestinationMode = LogDestinationMode.CentralOnly,
+                CentralLogEndpoint = "http://localhost:1/api/logs"
+            });
+
+            logger.LogTransfer("Central", @"C:\src\a.txt", @"C:\dst\a.txt", 1, 1);
+
+            Assert.Empty(Directory.GetFiles(_tempDir, "*.json"));
+>>>>>>> Stashed changes
         }
 
         // ── Helpers ──────────────────────────────────────────────────────────

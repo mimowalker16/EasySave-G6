@@ -4,6 +4,14 @@
 bin/
 obj/
 out/
+publish/
+publish-*/
+.dotnet-home/
+
+# Packaged/release outputs
+*.zip
+*.7z
+*.tar.gz
 
 # Visual Studio files
 .vs/
@@ -11,6 +19,7 @@ out/
 *.suo
 *.userosscache
 *.sln.docview
+**/Properties/launchSettings.json
 
 # NuGet
 *.nupkg
@@ -28,3 +37,8 @@ Thumbs.db
 
 # VS Code
 .vscode/
+
+# Local planning / accidental generated files
+.Plan/
+/main
+/EasySave.csproj

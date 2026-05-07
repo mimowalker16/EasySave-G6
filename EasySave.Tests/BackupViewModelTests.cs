@@ -165,6 +165,7 @@ namespace EasySave.Tests
         }
 
         [Fact]
+<<<<<<< Updated upstream
         public async Task PauseResumeStop_Controls_DoNotCrashAndAffectRunningJob()
         {
             string source = Path.Combine(_tempDir, "SrcCtl");
@@ -190,6 +191,27 @@ namespace EasySave.Tests
             var result = await runTask;
 
             Assert.True(paused || resumed || stopped || result.Success || result.Error == "cancelled");
+=======
+        public void ExecuteAllJobsParallel_CopiesConfiguredJobs()
+        {
+            string source1 = Path.Combine(_tempDir, "Source1");
+            string source2 = Path.Combine(_tempDir, "Source2");
+            string target1 = Path.Combine(_tempDir, "Target1");
+            string target2 = Path.Combine(_tempDir, "Target2");
+            Directory.CreateDirectory(source1);
+            Directory.CreateDirectory(source2);
+            File.WriteAllText(Path.Combine(source1, "a.txt"), "a");
+            File.WriteAllText(Path.Combine(source2, "b.txt"), "b");
+
+            _vm.CreateJob("JobA", source1, target1, BackupType.Full);
+            _vm.CreateJob("JobB", source2, target2, BackupType.Full);
+
+            var (ok, errors) = _vm.ExecuteAllJobsParallel();
+
+            Assert.True(ok, string.Join(", ", errors));
+            Assert.True(File.Exists(Path.Combine(target1, "a.txt")));
+            Assert.True(File.Exists(Path.Combine(target2, "b.txt")));
+>>>>>>> Stashed changes
         }
     }
 }
