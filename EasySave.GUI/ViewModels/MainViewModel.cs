@@ -14,10 +14,6 @@ using EasyLog;
 
 namespace EasySave.GUI.ViewModels
 {
-    // ──────────────────────────────────────────────────────────────────────────
-    // RelayCommand — minimal ICommand implementation
-    // ──────────────────────────────────────────────────────────────────────────
-
     public class RelayCommand : ICommand
     {
         private readonly Action<object?> _execute;
@@ -25,31 +21,27 @@ namespace EasySave.GUI.ViewModels
 
         public RelayCommand(Action<object?> execute, Func<object?, bool>? canExecute = null)
         {
-            _execute    = execute;
+            _execute = execute;
             _canExecute = canExecute;
         }
 
         public bool CanExecute(object? parameter) => _canExecute?.Invoke(parameter) ?? true;
-        public void Execute(object?   parameter) => _execute(parameter);
+        public void Execute(object? parameter) => _execute(parameter);
         public event EventHandler? CanExecuteChanged
         {
-            add    => CommandManager.RequerySuggested += value;
+            add => CommandManager.RequerySuggested += value;
             remove => CommandManager.RequerySuggested -= value;
         }
     }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // JobRow — display model for the DataGrid
-    // ──────────────────────────────────────────────────────────────────────────
 
     public class JobRow : INotifyPropertyChanged
     {
         private string _status = "Idle";
         private double _progress;
 
-        public int    Index  { get; set; }
-        public string Name   { get; set; } = string.Empty;
-        public string Type   { get; set; } = string.Empty;
+        public int Index { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string Type { get; set; } = string.Empty;
         public string Source { get; set; } = string.Empty;
         public string Target { get; set; } = string.Empty;
 
@@ -70,29 +62,26 @@ namespace EasySave.GUI.ViewModels
             => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
-    // MainViewModel
-    // ──────────────────────────────────────────────────────────────────────────
-
     public class MainViewModel : INotifyPropertyChanged
     {
         private readonly BackupViewModel _core;
+        private CancellationTokenSource? _runCts;
+        private bool _isBusy;
 
-        // ── Observable collections ─────────────────────────────────────────
         public ObservableCollection<JobRow> JobRows { get; } = new();
 
-        // ── Form fields for Create / Edit ──────────────────────────────────
-        private string _formName   = string.Empty;
+        private string _formName = string.Empty;
         private string _formSource = string.Empty;
         private string _formTarget = string.Empty;
-        private int    _formTypeIndex; // 0=Full, 1=Differential
+        private int _formTypeIndex;
         private JobRow? _selectedJob;
         private string _statusMessage = string.Empty;
-        private bool   _isEditing;
+        private bool _isEditing;
         private string _currentPage = "Jobs";
         private bool   _isBusy;
         private CancellationTokenSource? _runCts;
 
+<<<<<<< Updated upstream
         // ── Settings fields ────────────────────────────────────────────────
         private int    _logFormatIndex;   // 0=JSON, 1=XML
         private string _logDirectoryText = string.Empty;
@@ -102,6 +91,15 @@ namespace EasySave.GUI.ViewModels
         private string _centralClientId = string.Empty;
         private string _priorityExtensionsText = string.Empty;
         private long   _largeFileThresholdKb;
+=======
+        private int _logFormatIndex;
+        private string _logDirectoryText = string.Empty;
+        private int _logDestinationModeIndex;
+        private string _centralLogEndpoint = string.Empty;
+        private string _centralClientId = string.Empty;
+        private string _priorityExtensionsText = string.Empty;
+        private long _largeFileThresholdKb;
+>>>>>>> Stashed changes
         private string _businessSoftware = string.Empty;
         private string _encryptedExtensionsText = string.Empty;
 
@@ -132,7 +130,7 @@ namespace EasySave.GUI.ViewModels
         public JobRow? SelectedJob
         {
             get => _selectedJob;
-            set { _selectedJob = value; OnPropertyChanged(); }
+            set { _selectedJob = value; OnPropertyChanged(); CommandManager.InvalidateRequerySuggested(); }
         }
 
         public string StatusMessage
@@ -168,20 +166,35 @@ namespace EasySave.GUI.ViewModels
             set { _currentPage = value; OnPropertyChanged(); }
         }
 
-        // Settings
+        public bool IsBusy
+        {
+            get => _isBusy;
+            private set
+            {
+                if (_isBusy == value) return;
+                _isBusy = value;
+                OnPropertyChanged();
+                CommandManager.InvalidateRequerySuggested();
+            }
+        }
+
         public int LogFormatIndex
         {
             get => _logFormatIndex;
             set { _logFormatIndex = value; OnPropertyChanged(); }
         }
 
+<<<<<<< Updated upstream
         /// <summary>Absolute or expandable path (%ProgramData%\...) where daily logs are stored; empty uses default AppData folder.</summary>
+=======
+>>>>>>> Stashed changes
         public string LogDirectoryText
         {
             get => _logDirectoryText;
             set { _logDirectoryText = value; OnPropertyChanged(); }
         }
 
+<<<<<<< Updated upstream
         /// <summary>0 = pretty JSON array; 1 = fast NDJSON line-delimited (*.ndjson).</summary>
         public int JsonLayoutIndex
         {
@@ -189,6 +202,8 @@ namespace EasySave.GUI.ViewModels
             set { _jsonLayoutIndex = value; OnPropertyChanged(); }
         }
 
+=======
+>>>>>>> Stashed changes
         public int LogDestinationModeIndex
         {
             get => _logDestinationModeIndex;
@@ -225,26 +240,25 @@ namespace EasySave.GUI.ViewModels
             set { _businessSoftware = value; OnPropertyChanged(); }
         }
 
-        /// <summary>
-        /// Comma-separated list of extensions to encrypt (e.g. ".txt,.docx").
-        /// Bound to the Settings page TextBox. Parsed on save.
-        /// </summary>
         public string EncryptedExtensionsText
         {
             get => _encryptedExtensionsText;
             set { _encryptedExtensionsText = value; OnPropertyChanged(); }
         }
 
-        // ── Commands ───────────────────────────────────────────────────────
-        public ICommand SaveJobCommand    { get; }
-        public ICommand DeleteJobCommand  { get; }
+        public ICommand SaveJobCommand { get; }
+        public ICommand DeleteJobCommand { get; }
         public ICommand ExecuteJobCommand { get; }
         public ICommand ExecuteAllCommand { get; }
-        public ICommand SelectJobCommand  { get; }
-        public ICommand NewJobCommand     { get; }
+        public ICommand SelectJobCommand { get; }
+        public ICommand NewJobCommand { get; }
         public ICommand SaveSettingsCommand { get; }
+<<<<<<< Updated upstream
         public ICommand NavigateCommand   { get; }
         public ICommand CancelRunCommand { get; }
+=======
+        public ICommand NavigateCommand { get; }
+>>>>>>> Stashed changes
         public ICommand PauseJobCommand { get; }
         public ICommand ResumeJobCommand { get; }
         public ICommand StopJobCommand { get; }
@@ -255,17 +269,25 @@ namespace EasySave.GUI.ViewModels
         public MainViewModel(BackupViewModel core)
         {
             _core = core;
+            _core.StateChanged += OnCoreStateChanged;
 
+<<<<<<< Updated upstream
             // Load settings into form
             LogFormatIndex           = core.Settings.LogFormat == LogFormat.Xml ? 1 : 0;
             LogDirectoryText         = core.Settings.LogDirectory ?? string.Empty;
             JsonLayoutIndex          = core.Settings.JsonLogLayout == JsonLogLayout.Ndjson ? 1 : 0;
             LogDestinationModeIndex  = core.Settings.LogDestinationMode switch
+=======
+            LogFormatIndex = core.Settings.LogFormat == LogFormat.Xml ? 1 : 0;
+            LogDirectoryText = core.Settings.LogDirectory;
+            LogDestinationModeIndex = core.Settings.LogDestinationMode switch
+>>>>>>> Stashed changes
             {
                 LogDestinationMode.CentralOnly => 1,
                 LogDestinationMode.LocalAndCentral => 2,
                 _ => 0
             };
+<<<<<<< Updated upstream
             CentralLogEndpoint       = core.Settings.CentralLogEndpoint;
             CentralClientId          = core.Settings.CentralClientId;
             PriorityExtensionsText   = string.Join(",", core.Settings.PriorityExtensions);
@@ -290,11 +312,32 @@ namespace EasySave.GUI.ViewModels
             PauseAllCommand    = new RelayCommand(_ => PauseAllJobs());
             ResumeAllCommand   = new RelayCommand(_ => ResumeAllJobs());
             StopAllCommand     = new RelayCommand(_ => StopAllJobs());
+=======
+            CentralLogEndpoint = core.Settings.CentralLogEndpoint;
+            CentralClientId = core.Settings.CentralClientId;
+            PriorityExtensionsText = string.Join(",", core.Settings.PriorityExtensions);
+            LargeFileThresholdKb = core.Settings.LargeFileThresholdKb;
+            BusinessSoftware = core.Settings.BusinessSoftwareName;
+            EncryptedExtensionsText = string.Join(",", core.Settings.EncryptedExtensions);
+
+            SaveJobCommand = new RelayCommand(_ => SaveJob(), _ => !IsBusy);
+            DeleteJobCommand = new RelayCommand(DeleteJob, _ => !IsBusy);
+            ExecuteJobCommand = new RelayCommand(ExecuteJobKickoff, _ => !IsBusy);
+            ExecuteAllCommand = new RelayCommand(_ => ExecuteAllKickoff(), _ => !IsBusy && JobRows.Count > 0);
+            SelectJobCommand = new RelayCommand(o => SelectJob(o as JobRow), _ => !IsBusy);
+            NewJobCommand = new RelayCommand(_ => StartNewJob(), _ => !IsBusy);
+            SaveSettingsCommand = new RelayCommand(_ => SaveSettings(), _ => !IsBusy);
+            NavigateCommand = new RelayCommand(o => CurrentPage = o?.ToString() ?? "Jobs");
+            PauseJobCommand = new RelayCommand(o => PauseJob(o as JobRow));
+            ResumeJobCommand = new RelayCommand(o => ResumeJob(o as JobRow));
+            StopJobCommand = new RelayCommand(o => StopJob(o as JobRow));
+            PauseAllCommand = new RelayCommand(_ => PauseAllJobs());
+            ResumeAllCommand = new RelayCommand(_ => ResumeAllJobs());
+            StopAllCommand = new RelayCommand(_ => StopAllJobs());
+>>>>>>> Stashed changes
 
             RefreshJobRows();
         }
-
-        // ── Job actions ────────────────────────────────────────────────────
 
         private void SaveJob()
         {
@@ -303,27 +346,30 @@ namespace EasySave.GUI.ViewModels
             if (IsEditing && SelectedJob != null)
             {
                 var (ok, err) = _core.EditJob(SelectedJob.Index, FormName, FormSource, FormTarget, type);
-                StatusMessage = ok ? "✔ Job updated." : $"✖ {err}";
+                StatusMessage = ok ? "Job updated." : err;
             }
             else
             {
                 var (ok, err) = _core.CreateJob(FormName, FormSource, FormTarget, type);
-                StatusMessage = ok ? "✔ Job created." : $"✖ {err}";
+                StatusMessage = ok ? "Job created." : err;
             }
 
             RefreshJobRows();
             StartNewJob();
         }
 
-        private void DeleteSelected()
+        private void DeleteJob(object? parameter)
         {
-            if (SelectedJob == null) return;
-            var (ok, err) = _core.DeleteJob(SelectedJob.Index);
-            StatusMessage = ok ? "✔ Job deleted." : $"✖ {err}";
+            var row = parameter as JobRow ?? SelectedJob;
+            if (row == null) return;
+
+            var (ok, err) = _core.DeleteJob(row.Index);
+            StatusMessage = ok ? "Job deleted." : err;
             RefreshJobRows();
             StartNewJob();
         }
 
+<<<<<<< Updated upstream
         /// <summary>Runs job from toolbar list button (<see cref="JobRow"/> CommandParameter).</summary>
         private void ExecuteOneKickoff(object? parameter)
         {
@@ -453,11 +499,69 @@ namespace EasySave.GUI.ViewModels
             CancellationToken token = _runCts.Token;
 
             foreach (var row in JobRows)
+=======
+        private void ExecuteJobKickoff(object? parameter)
+        {
+            var row = parameter as JobRow ?? SelectedJob;
+            if (row == null || IsBusy) return;
+            _ = ExecuteJobAsync(row);
+        }
+
+        private void ExecuteAllKickoff()
+        {
+            if (IsBusy) return;
+            _ = ExecuteAllAsync();
+        }
+
+        private async Task ExecuteJobAsync(JobRow row)
+        {
+            _runCts?.Dispose();
+            _runCts = new CancellationTokenSource();
+            IsBusy = true;
+
+            row.Status = "Running";
+            row.Progress = 0;
+            StatusMessage = $"Running {row.Name}...";
+
+            try
+>>>>>>> Stashed changes
             {
-                row.Status   = "Running…";
+                (bool ok, string error) = await Task.Run(
+                    () => _core.ExecuteJob(row.Index, _runCts.Token));
+
+                if (!ok)
+                {
+                    row.Status = error == "cancelled" ? "Canceled" : $"Error: {error}";
+                    StatusMessage = $"{row.Name}: {error}";
+                }
+                else
+                {
+                    row.Progress = 100;
+                    row.Status = "Done";
+                    StatusMessage = $"{row.Name} completed.";
+                }
+            }
+            finally
+            {
+                IsBusy = false;
+                _runCts?.Dispose();
+                _runCts = null;
+            }
+        }
+
+        private async Task ExecuteAllAsync()
+        {
+            _runCts?.Dispose();
+            _runCts = new CancellationTokenSource();
+            IsBusy = true;
+
+            foreach (JobRow row in JobRows)
+            {
+                row.Status = "Running";
                 row.Progress = 0;
             }
 
+<<<<<<< Updated upstream
             StatusMessage = "Running all jobs…";
             IsBusy        = true;
 
@@ -486,64 +590,145 @@ namespace EasySave.GUI.ViewModels
                 _runCts?.Dispose();
                 _runCts = null;
             }
+=======
+            StatusMessage = "Running all jobs in parallel...";
+
+            try
+            {
+                (bool ok, List<string> errors) = await Task.Run(
+                    () => _core.ExecuteAllJobsParallel(_runCts.Token));
+
+                StatusMessage = ok
+                    ? "All jobs completed."
+                    : $"Completed with errors: {string.Join(", ", errors)}";
+            }
+            finally
+            {
+                IsBusy = false;
+                _runCts?.Dispose();
+                _runCts = null;
+            }
+        }
+
+        private void PauseJob(JobRow? row)
+        {
+            if (row == null) return;
+            if (_core.PauseJob(row.Index))
+            {
+                row.Status = "Paused";
+                StatusMessage = $"{row.Name} paused.";
+            }
+        }
+
+        private void ResumeJob(JobRow? row)
+        {
+            if (row == null) return;
+            if (_core.ResumeJob(row.Index))
+            {
+                row.Status = "Running";
+                StatusMessage = $"{row.Name} resumed.";
+            }
+        }
+
+        private void StopJob(JobRow? row)
+        {
+            if (row == null) return;
+            if (_core.StopJob(row.Index))
+            {
+                row.Status = "Stopping";
+                StatusMessage = $"{row.Name} stop requested.";
+            }
+        }
+
+        private void PauseAllJobs()
+        {
+            _core.PauseAllJobs();
+            foreach (JobRow row in JobRows)
+                if (row.Status == "Running")
+                    row.Status = "Paused";
+            StatusMessage = "Pause requested for running jobs.";
+        }
+
+        private void ResumeAllJobs()
+        {
+            _core.ResumeAllJobs();
+            foreach (JobRow row in JobRows)
+                if (row.Status == "Paused")
+                    row.Status = "Running";
+            StatusMessage = "Resume requested for paused jobs.";
+        }
+
+        private void StopAllJobs()
+        {
+            _core.StopAllJobs();
+            foreach (JobRow row in JobRows)
+                if (row.Status == "Running" || row.Status == "Paused")
+                    row.Status = "Stopping";
+            StatusMessage = "Stop requested for running jobs.";
+>>>>>>> Stashed changes
         }
 
         private void SelectJob(JobRow? row)
         {
             if (row == null) return;
-            SelectedJob    = row;
-            IsEditing      = true;
-            FormName       = row.Name;
-            FormSource     = row.Source;
-            FormTarget     = row.Target;
-            FormTypeIndex  = row.Type == "Differential" ? 1 : 0;
+            SelectedJob = row;
+            IsEditing = true;
+            FormName = row.Name;
+            FormSource = row.Source;
+            FormTarget = row.Target;
+            FormTypeIndex = row.Type == "Differential" ? 1 : 0;
         }
 
         private void StartNewJob()
         {
-            IsEditing      = false;
-            SelectedJob    = null;
-            FormName       = string.Empty;
-            FormSource     = string.Empty;
-            FormTarget     = string.Empty;
-            FormTypeIndex  = 0;
+            IsEditing = false;
+            SelectedJob = null;
+            FormName = string.Empty;
+            FormSource = string.Empty;
+            FormTarget = string.Empty;
+            FormTypeIndex = 0;
         }
-
-        // ── Settings ────────────────────────────────────────────────────────
 
         private void SaveSettings()
         {
-            // Parse the comma-separated extensions string → List<string>
-            var extensions = new System.Collections.Generic.List<string>();
-            foreach (string raw in EncryptedExtensionsText.Split(',', StringSplitOptions.RemoveEmptyEntries))
-            {
-                string ext = raw.Trim().ToLowerInvariant();
-                if (!string.IsNullOrEmpty(ext))
-                    extensions.Add(ext.StartsWith('.') ? ext : "." + ext);
-            }
-
             var settings = new AppSettings
             {
+<<<<<<< Updated upstream
                 LogFormat            = LogFormatIndex == 1 ? LogFormat.Xml : LogFormat.Json,
                 LogDirectory         = LogDirectoryText.Trim(),
                 JsonLogLayout        = JsonLayoutIndex == 1 ? JsonLogLayout.Ndjson : JsonLogLayout.PrettyArray,
                 LogDestinationMode   = LogDestinationModeIndex switch
+=======
+                LogFormat = LogFormatIndex == 1 ? LogFormat.Xml : LogFormat.Json,
+                LogDirectory = LogDirectoryText.Trim(),
+                LogDestinationMode = LogDestinationModeIndex switch
+>>>>>>> Stashed changes
                 {
                     1 => LogDestinationMode.CentralOnly,
                     2 => LogDestinationMode.LocalAndCentral,
                     _ => LogDestinationMode.LocalOnly
                 },
+<<<<<<< Updated upstream
                 CentralLogEndpoint   = CentralLogEndpoint.Trim(),
                 CentralClientId      = CentralClientId.Trim(),
                 PriorityExtensions   = ParseExtensions(PriorityExtensionsText),
                 LargeFileThresholdKb = LargeFileThresholdKb < 0 ? 0 : LargeFileThresholdKb,
                 EncryptedExtensions  = extensions,
+=======
+                CentralLogEndpoint = CentralLogEndpoint.Trim(),
+                CentralClientId = CentralClientId.Trim(),
+                PriorityExtensions = ParseExtensions(PriorityExtensionsText),
+                LargeFileThresholdKb = Math.Max(0, LargeFileThresholdKb),
+                EncryptedExtensions = ParseExtensions(EncryptedExtensionsText),
+>>>>>>> Stashed changes
                 BusinessSoftwareName = BusinessSoftware.Trim()
             };
+
             _core.UpdateSettings(settings);
-            StatusMessage = "✔ Settings saved.";
+            StatusMessage = "Settings saved.";
         }
 
+<<<<<<< Updated upstream
         private static List<string> ParseExtensions(string rawText)
         {
             var result = new List<string>();
@@ -557,23 +742,57 @@ namespace EasySave.GUI.ViewModels
         }
 
         // ── Helpers ────────────────────────────────────────────────────────
+=======
+        private void OnCoreStateChanged(int zeroBasedIndex, BackupState state)
+        {
+            Application.Current?.Dispatcher.Invoke(() =>
+            {
+                if (zeroBasedIndex < 0 || zeroBasedIndex >= JobRows.Count)
+                    return;
+
+                JobRow row = JobRows[zeroBasedIndex];
+                row.Progress = state.Progress;
+                row.Status = state.State switch
+                {
+                    BackupStateType.Active => "Running",
+                    BackupStateType.Paused => "Paused",
+                    BackupStateType.Canceled => "Canceled",
+                    BackupStateType.End => "Done",
+                    _ => "Idle"
+                };
+            });
+        }
+>>>>>>> Stashed changes
 
         private void RefreshJobRows()
         {
             JobRows.Clear();
             for (int i = 0; i < _core.Jobs.Count; i++)
             {
-                var j = _core.Jobs[i];
+                BackupJob job = _core.Jobs[i];
                 JobRows.Add(new JobRow
                 {
-                    Index  = i + 1,
-                    Name   = j.Name,
-                    Type   = j.Type.ToString(),
-                    Source = j.SourceDirectory,
-                    Target = j.TargetDirectory,
-                    Status = "Idle",
+                    Index = i + 1,
+                    Name = job.Name,
+                    Type = job.Type.ToString(),
+                    Source = job.SourceDirectory,
+                    Target = job.TargetDirectory,
+                    Status = "Idle"
                 });
             }
+        }
+
+        private static List<string> ParseExtensions(string rawText)
+        {
+            var result = new List<string>();
+            foreach (string raw in rawText.Split(',', StringSplitOptions.RemoveEmptyEntries))
+            {
+                string ext = raw.Trim().ToLowerInvariant();
+                if (string.IsNullOrEmpty(ext)) continue;
+                result.Add(ext.StartsWith('.') ? ext : "." + ext);
+            }
+
+            return result;
         }
 
         public event PropertyChangedEventHandler? PropertyChanged;

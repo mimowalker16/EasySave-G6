@@ -1,7 +1,7 @@
 # EasySave — Logiciel de sauvegarde
 
 > Projet réalisé dans le cadre d'une mission pour **ProSoft** par l'équipe de développement CESI.  
-> Application console .NET 8.0 implémentant l'architecture **MVVM** avec une bibliothèque de logs dédiée (**EasyLog**).
+> Application .NET 8.0 avec console v1.1, interface WPF v3.0, architecture **MVVM** et bibliothèque de logs dédiée (**EasyLog**).
 
 ---
 
@@ -12,27 +12,45 @@ Dans le cadre de l'évolution de son catalogue, ProSoft a commandé le développ
 
 ### Exigences principales
 
-- Application **.NET 8.0** en mode console (évolutive vers une interface graphique)
+- Application **.NET 8.0** avec console historique et interface graphique WPF
 - Architecture **MVVM** (Model – View – ViewModel) obligatoire
 - Module de logs **séparé** sous forme de DLL (`EasyLog`)
-- Logs journaliers au format **JSON**
+- Logs journaliers au format **JSON** ou **XML**
 - Suivi d'état en **temps réel** (fichier `state.json`)
 - Support **multi-langue** : Français et Anglais
-- Maximum **5 travaux de sauvegarde** configurables
+- Maximum **5 travaux** en console v1.1, nombre **illimité** dans l'interface graphique
 - Types de sauvegarde : **Complète** et **Différentielle**
+
+### Synthese des versions
+
+| Fonction | Version 1.1 Console | Version 2.0 GUI | Version 3.0 GUI |
+|----------|---------------------|-----------------|-----------------|
+| Interface | Console | WPF | WPF |
+| Travaux de sauvegarde | Limite a 5 | Illimite | Illimite |
+| Execution | Mono ou sequentielle | Mono ou sequentielle | Parallele |
+| Logs journaliers | JSON ou XML | JSON ou XML + temps de cryptage | JSON ou XML + local/centralise |
+| Etat temps reel | Oui | Oui | Oui avec progression, pause et annulation |
+| CryptoSoft | Non | Oui | Oui, mono-instance |
+| Logiciel metier | Non | Bloque le lancement | Pause temporaire et reprise automatique |
+| Fichiers prioritaires | Non | Non | Oui |
+| Gros fichiers simultanes | Non | Non | Un seul transfert au-dessus du seuil parametre |
+| Play / Pause / Stop | Non | Non | Par travail et global |
+| Ligne de commande | Oui | Identique v1.1 | Console conserve le comportement v1.1 |
 
 ---
 
 ## Structure du projet
 
-La solution contient **4 projets** distincts :
+La solution contient les projets suivants :
 
 | Projet | Type | Role |
 |--------|------|------|
-| `EasySave` | Executable console | Version 1 : interface en ligne de commande |
-| `EasySave.GUI` | Executable WPF | Version 2 : interface graphique Windows |
+| `EasySave` | Executable console | Version 1.1 : interface en ligne de commande sequentielle |
+| `EasySave.GUI` | Executable WPF | Version 3.0 : interface graphique Windows parallele |
 | `EasySave.Core` | Bibliotheque DLL | Logique metier partagee entre les deux versions |
-| `EasyLog` | Bibliotheque DLL | Module de logs JSON, independant et reutilisable |
+| `EasyLog` | Bibliotheque DLL | Module de logs JSON/XML local et centralise |
+| `CryptoSoft` | Executable console | Chiffrement XOR mono-instance |
+| `LogCentralizer` | Service ASP.NET Docker | Centralisation des logs journaliers |
 
 ```
 logiciel/
@@ -52,7 +70,7 @@ logiciel/
 │   │   ├── BackupJob.cs         <- Configuration d'un travail de sauvegarde
 │   │   ├── BackupState.cs       <- Etat en temps reel d'un job
 │   │   ├── BackupType.cs        <- Enum : Full / Differential
-│   │   └── BackupStateType.cs   <- Enum : Inactive / Active / End
+│   │   └── BackupStateType.cs   <- Enum : Inactive / Active / Paused / Canceled / End
 │   ├── Services/
 │   │   ├── BackupService.cs     <- Moteur de copie de fichiers
 │   │   ├── ConfigService.cs     <- Persistance des jobs (jobs.json)
@@ -68,6 +86,13 @@ logiciel/
 │
 ├── EasyLog/                     <- Bibliotheque DLL de logs (projet separe)
 │   └── Logger.cs                <- Logger JSON/XML thread-safe
+│
+├── CryptoSoft/                  <- Executable de cryptage mono-instance
+│   └── Program.cs
+│
+├── LogCentralizer/              <- Service Docker de centralisation des logs
+│   ├── Program.cs
+│   └── Dockerfile
 │
 ├── TestData/                    <- Dossiers de test fournis
 │   ├── Source1/                 <- Dossier source pour les tests

@@ -31,6 +31,10 @@ namespace EasySave.Tests
         {
             var settings = _svc.Load();
             Assert.Equal(LogFormat.Json, settings.LogFormat);
+            Assert.Equal(LogDestinationMode.LocalOnly, settings.LogDestinationMode);
+            Assert.Empty(settings.LogDirectory);
+            Assert.Empty(settings.PriorityExtensions);
+            Assert.Equal(0, settings.LargeFileThresholdKb);
             Assert.Empty(settings.EncryptedExtensions);
             Assert.Empty(settings.BusinessSoftwareName);
         }
@@ -69,6 +73,30 @@ namespace EasySave.Tests
             Assert.Contains(".txt",  loaded.EncryptedExtensions);
             Assert.Contains(".docx", loaded.EncryptedExtensions);
             Assert.Contains(".pdf",  loaded.EncryptedExtensions);
+        }
+
+        [Fact]
+        public void Save_ThenLoad_RoundTripsV3Settings()
+        {
+            var original = new AppSettings
+            {
+                LogDirectory = @"%APPDATA%\EasySave\Logs",
+                LogDestinationMode = LogDestinationMode.LocalAndCentral,
+                CentralLogEndpoint = "http://localhost:8080/api/logs",
+                CentralClientId = "POSTE-01",
+                PriorityExtensions = new List<string> { ".zip", ".bak" },
+                LargeFileThresholdKb = 512
+            };
+
+            _svc.Save(original);
+
+            var loaded = _svc.Load();
+            Assert.Equal(original.LogDirectory, loaded.LogDirectory);
+            Assert.Equal(LogDestinationMode.LocalAndCentral, loaded.LogDestinationMode);
+            Assert.Equal(original.CentralLogEndpoint, loaded.CentralLogEndpoint);
+            Assert.Equal(original.CentralClientId, loaded.CentralClientId);
+            Assert.Contains(".zip", loaded.PriorityExtensions);
+            Assert.Equal(512, loaded.LargeFileThresholdKb);
         }
 
         [Fact]

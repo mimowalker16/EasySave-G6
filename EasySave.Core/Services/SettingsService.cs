@@ -8,7 +8,13 @@ using EasyLog;
 namespace EasySave.Core.Services
 {
     /// <summary>
+<<<<<<< Updated upstream
     /// Persists global application settings to %APPDATA%\EasySave\Config\settings.json.
+=======
+    /// Persists global application settings:
+    /// logging, encryption, scheduling, centralization, and business software detection.
+    /// Settings are saved to %APPDATA%\EasySave\Config\settings.json.
+>>>>>>> Stashed changes
     /// </summary>
     public class SettingsService
     {
@@ -59,6 +65,30 @@ namespace EasySave.Core.Services
         /// <summary>Log output format: JSON (default) or XML.</summary>
         [JsonPropertyName("LogFormat")]
         public LogFormat LogFormat { get; set; } = LogFormat.Json;
+
+        /// <summary>Custom daily log directory. Empty uses %APPDATA%\EasySave\Logs.</summary>
+        [JsonPropertyName("LogDirectory")]
+        public string LogDirectory { get; set; } = string.Empty;
+
+        /// <summary>Local/central logging destination mode.</summary>
+        [JsonPropertyName("LogDestinationMode")]
+        public LogDestinationMode LogDestinationMode { get; set; } = LogDestinationMode.LocalOnly;
+
+        /// <summary>HTTP endpoint used by the Docker central log collector.</summary>
+        [JsonPropertyName("CentralLogEndpoint")]
+        public string CentralLogEndpoint { get; set; } = string.Empty;
+
+        /// <summary>Client/user identifier stored with centralized entries.</summary>
+        [JsonPropertyName("CentralClientId")]
+        public string CentralClientId { get; set; } = string.Empty;
+
+        /// <summary>File extensions that must be transferred before non-priority files.</summary>
+        [JsonPropertyName("PriorityExtensions")]
+        public List<string> PriorityExtensions { get; set; } = new();
+
+        /// <summary>Only one file above this size can be copied at a time. 0 disables the rule.</summary>
+        [JsonPropertyName("LargeFileThresholdKb")]
+        public long LargeFileThresholdKb { get; set; } = 0;
 
         /// <summary>
         /// Custom root directory for daily logs. Empty = default under %AppData%\EasySave\Logs.

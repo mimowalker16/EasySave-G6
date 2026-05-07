@@ -8,6 +8,7 @@
     <RootNamespace>EasyLog</RootNamespace>
     <!-- Generates EasyLog.xml alongside EasyLog.dll for IntelliSense and API documentation -->
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);1591</NoWarn>
   </PropertyGroup>
 
 </Project>
