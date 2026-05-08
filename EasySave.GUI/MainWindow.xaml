@@ -469,122 +469,170 @@
 
             <ScrollViewer Visibility="{Binding CurrentPage, Converter={x:Static local:PageConverter.Instance}, ConverterParameter=Settings}"
                           VerticalScrollBarVisibility="Auto" Padding="28,24">
-                <StackPanel MaxWidth="820">
+                <StackPanel MaxWidth="940">
                     <TextBlock Text="{DynamicResource SettingsTitle}" FontSize="24" FontWeight="Bold"/>
-                    <TextBlock Text="{DynamicResource SettingsSubtitle}" Foreground="{StaticResource TextSecondary}" Margin="0,4,0,22"/>
+                    <TextBlock Text="{DynamicResource SettingsSubtitle}" Foreground="{StaticResource TextSecondary}" Margin="0,4,0,18"/>
 
-                    <Border Style="{StaticResource CardBorder}" Margin="0,0,0,14">
-                        <StackPanel>
-                            <TextBlock Text="{DynamicResource General}" Style="{StaticResource SectionTitle}"/>
-                            <TextBlock Text="{DynamicResource Language}" Style="{StaticResource FieldLabel}"/>
-                            <ComboBox SelectedIndex="{Binding LanguageIndex}" Style="{StaticResource ModernComboBox}" Width="220" HorizontalAlignment="Left">
-                                <ComboBoxItem Content="English" Foreground="{StaticResource TextPrimary}"/>
-                                <ComboBoxItem Content="Francais" Foreground="{StaticResource TextPrimary}"/>
-                            </ComboBox>
-                        </StackPanel>
-                    </Border>
+                    <TabControl Style="{StaticResource SettingsTabControl}">
+                        <TabItem Header="{DynamicResource General}" Style="{StaticResource SettingsTabItem}">
+                            <Border Style="{StaticResource CardBorder}" Margin="0,12,0,14">
+                                <StackPanel>
+                                    <TextBlock Text="{DynamicResource General}" Style="{StaticResource SectionTitle}"/>
+                                    <TextBlock Text="{DynamicResource Language}" Style="{StaticResource FieldLabel}"/>
+                                    <ComboBox SelectedIndex="{Binding LanguageIndex}" Style="{StaticResource ModernComboBox}" Width="220" HorizontalAlignment="Left">
+                                        <ComboBoxItem Content="English" Foreground="{StaticResource TextPrimary}"/>
+                                        <ComboBoxItem Content="Francais" Foreground="{StaticResource TextPrimary}"/>
+                                    </ComboBox>
+                                </StackPanel>
+                            </Border>
+                        </TabItem>
 
-                    <Border Style="{StaticResource CardBorder}" Margin="0,0,0,14">
-                        <StackPanel>
-                            <TextBlock Text="{DynamicResource Logging}" Style="{StaticResource SectionTitle}"/>
-                            <TextBlock Text="{DynamicResource LogFormat}" Style="{StaticResource FieldLabel}"/>
-                            <ComboBox SelectedIndex="{Binding LogFormatIndex}" Style="{StaticResource ModernComboBox}" Width="220" HorizontalAlignment="Left">
-                                <ComboBoxItem Content="JSON" Foreground="{StaticResource TextPrimary}"/>
-                                <ComboBoxItem Content="XML" Foreground="{StaticResource TextPrimary}"/>
-                            </ComboBox>
-                            <TextBlock Text="{DynamicResource LogDirectory}" Style="{StaticResource FieldLabel}"/>
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                                <TextBox Text="{Binding LogDirectoryText, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource ModernTextBox}" Margin="0,0,8,0"/>
-                                <Button Grid.Column="1" Content="{DynamicResource Browse}" Style="{StaticResource GhostBtn}" Command="{Binding BrowseLogDirectoryCommand}"/>
-                            </Grid>
-                            <TextBlock Text="{DynamicResource LogDestination}" Style="{StaticResource FieldLabel}"/>
-                            <ComboBox SelectedIndex="{Binding LogDestinationModeIndex}" Style="{StaticResource ModernComboBox}" Width="260" HorizontalAlignment="Left">
-                                <ComboBoxItem Content="{DynamicResource LocalOnly}" Foreground="{StaticResource TextPrimary}"/>
-                                <ComboBoxItem Content="{DynamicResource CentralOnly}" Foreground="{StaticResource TextPrimary}"/>
-                                <ComboBoxItem Content="{DynamicResource LocalAndCentral}" Foreground="{StaticResource TextPrimary}"/>
-                            </ComboBox>
-                            <TextBlock Text="{DynamicResource CentralEndpoint}" Style="{StaticResource FieldLabel}"/>
-                            <TextBox Text="{Binding CentralLogEndpoint, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource ModernTextBox}"/>
-                            <TextBlock Text="{DynamicResource ClientId}" Style="{StaticResource FieldLabel}"/>
-                            <TextBox Text="{Binding CentralClientId, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource ModernTextBox}" Width="280" HorizontalAlignment="Left"/>
-                            <Button Content="{DynamicResource TestCentralLogging}" Style="{StaticResource GhostBtn}" Command="{Binding TestCentralLoggingCommand}" HorizontalAlignment="Left" Margin="0,12,0,0"/>
-                        </StackPanel>
-                    </Border>
+                        <TabItem Header="{DynamicResource Logging}" Style="{StaticResource SettingsTabItem}">
+                            <Border Style="{StaticResource CardBorder}" Margin="0,12,0,14">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="260"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <TextBlock Text="{DynamicResource Logging}" Style="{StaticResource SectionTitle}"/>
+                                        <TextBlock Text="{DynamicResource LogFormat}" Style="{StaticResource FieldLabel}"/>
+                                        <ComboBox SelectedIndex="{Binding LogFormatIndex}" Style="{StaticResource ModernComboBox}" Width="220" HorizontalAlignment="Left">
+                                            <ComboBoxItem Content="JSON" Foreground="{StaticResource TextPrimary}"/>
+                                            <ComboBoxItem Content="XML" Foreground="{StaticResource TextPrimary}"/>
+                                        </ComboBox>
+                                        <TextBlock Text="{DynamicResource LogDirectory}" Style="{StaticResource FieldLabel}"/>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBox Text="{Binding LogDirectoryText, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource ModernTextBox}" Margin="0,0,8,0"/>
+                                            <Button Grid.Column="1" Content="{DynamicResource Browse}" Style="{StaticResource GhostBtn}" Command="{Binding BrowseLogDirectoryCommand}"/>
+                                        </Grid>
+                                        <TextBlock Text="{DynamicResource LogDestination}" Style="{StaticResource FieldLabel}"/>
+                                        <ComboBox SelectedIndex="{Binding LogDestinationModeIndex}" Style="{StaticResource ModernComboBox}" Width="260" HorizontalAlignment="Left">
+                                            <ComboBoxItem Content="{DynamicResource LocalOnly}" Foreground="{StaticResource TextPrimary}"/>
+                                            <ComboBoxItem Content="{DynamicResource CentralOnly}" Foreground="{StaticResource TextPrimary}"/>
+                                            <ComboBoxItem Content="{DynamicResource LocalAndCentral}" Foreground="{StaticResource TextPrimary}"/>
+                                        </ComboBox>
+                                        <TextBlock Text="{DynamicResource CentralEndpoint}" Style="{StaticResource FieldLabel}"/>
+                                        <TextBox Text="{Binding CentralLogEndpoint, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource ModernTextBox}"/>
+                                        <TextBlock Text="{DynamicResource ClientId}" Style="{StaticResource FieldLabel}"/>
+                                        <TextBox Text="{Binding CentralClientId, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource ModernTextBox}" Width="280" HorizontalAlignment="Left"/>
+                                    </StackPanel>
+                                    <Border Grid.Column="1" Background="{StaticResource MutedSurface}" CornerRadius="8" Padding="14" Margin="18,0,0,0" VerticalAlignment="Top">
+                                        <StackPanel>
+                                            <TextBlock Text="{DynamicResource TestCentralLogging}" FontWeight="SemiBold"/>
+                                            <TextBlock Text="{DynamicResource CentralEndpoint}" Style="{StaticResource MetaLabel}" Margin="0,8,0,12"/>
+                                            <Button Content="{DynamicResource TestCentralLogging}" Style="{StaticResource GhostBtn}" Command="{Binding TestCentralLoggingCommand}" HorizontalAlignment="Stretch"/>
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
+                            </Border>
+                        </TabItem>
 
-                    <Border Style="{StaticResource CardBorder}" Margin="0,0,0,14">
-                        <StackPanel>
-                            <TextBlock Text="{DynamicResource Scheduling}" Style="{StaticResource SectionTitle}"/>
-                            <TextBlock Text="{DynamicResource PriorityExtensions}" Style="{StaticResource FieldLabel}"/>
-                            <WrapPanel>
-                                <ItemsControl ItemsSource="{Binding PriorityExtensionChips}">
-                                    <ItemsControl.ItemsPanel>
-                                        <ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate>
-                                    </ItemsControl.ItemsPanel>
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate>
-                                            <Border Background="{StaticResource MutedSurface}" CornerRadius="10" Padding="10,4" Margin="0,0,8,8">
-                                                <StackPanel Orientation="Horizontal">
-                                                    <TextBlock Text="{Binding}"/>
-                                                    <Button Content="x" Style="{StaticResource SmallGhostBtn}" Padding="6,0" Margin="8,0,0,0" Command="{Binding DataContext.RemovePriorityExtensionCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
-                                                </StackPanel>
-                                            </Border>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                            </WrapPanel>
-                            <WrapPanel>
-                                <TextBox Text="{Binding NewPriorityExtension, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource ModernTextBox}" Width="160" Margin="0,0,8,0"/>
-                                <Button Content="{DynamicResource Add}" Style="{StaticResource GhostBtn}" Command="{Binding AddPriorityExtensionCommand}"/>
-                            </WrapPanel>
-                            <TextBlock Text="{DynamicResource LargeThreshold}" Style="{StaticResource FieldLabel}"/>
-                            <TextBox Text="{Binding LargeFileThresholdKb, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource ModernTextBox}" Width="180" HorizontalAlignment="Left"/>
-                        </StackPanel>
-                    </Border>
+                        <TabItem Header="{DynamicResource Scheduling}" Style="{StaticResource SettingsTabItem}">
+                            <Border Style="{StaticResource CardBorder}" Margin="0,12,0,14">
+                                <StackPanel>
+                                    <TextBlock Text="{DynamicResource Scheduling}" Style="{StaticResource SectionTitle}"/>
+                                    <TextBlock Text="{DynamicResource PriorityExtensions}" Style="{StaticResource FieldLabel}"/>
+                                    <WrapPanel>
+                                        <ItemsControl ItemsSource="{Binding PriorityExtensionChips}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border Background="{StaticResource MutedSurface}" CornerRadius="10" Padding="10,4" Margin="0,0,8,8">
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock Text="{Binding}"/>
+                                                            <Button Content="x" Style="{StaticResource SmallGhostBtn}" Padding="6,0" Margin="8,0,0,0" Command="{Binding DataContext.RemovePriorityExtensionCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
+                                                        </StackPanel>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </WrapPanel>
+                                    <WrapPanel>
+                                        <TextBox Text="{Binding NewPriorityExtension, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource ModernTextBox}" Width="160" Margin="0,0,8,0"/>
+                                        <Button Content="{DynamicResource Add}" Style="{StaticResource GhostBtn}" Command="{Binding AddPriorityExtensionCommand}"/>
+                                    </WrapPanel>
+                                    <TextBlock Text="{DynamicResource LargeThreshold}" Style="{StaticResource FieldLabel}"/>
+                                    <TextBox Text="{Binding LargeFileThresholdKb, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource ModernTextBox}" Width="180" HorizontalAlignment="Left"/>
+                                </StackPanel>
+                            </Border>
+                        </TabItem>
 
-                    <Border Style="{StaticResource CardBorder}" Margin="0,0,0,14">
-                        <StackPanel>
-                            <TextBlock Text="{DynamicResource Encryption}" Style="{StaticResource SectionTitle}"/>
-                            <TextBlock Text="{DynamicResource EncryptedExtensions}" Style="{StaticResource FieldLabel}"/>
-                            <ItemsControl ItemsSource="{Binding EncryptedExtensionChips}">
-                                <ItemsControl.ItemsPanel>
-                                    <ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate>
-                                </ItemsControl.ItemsPanel>
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Border Background="{StaticResource MutedSurface}" CornerRadius="10" Padding="10,4" Margin="0,0,8,8">
-                                            <StackPanel Orientation="Horizontal">
-                                                <TextBlock Text="{Binding}"/>
-                                                <Button Content="x" Style="{StaticResource SmallGhostBtn}" Padding="6,0" Margin="8,0,0,0" Command="{Binding DataContext.RemoveEncryptedExtensionCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
-                                            </StackPanel>
-                                        </Border>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                            <WrapPanel>
-                                <TextBox Text="{Binding NewEncryptedExtension, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource ModernTextBox}" Width="160" Margin="0,0,8,0"/>
-                                <Button Content="{DynamicResource Add}" Style="{StaticResource GhostBtn}" Command="{Binding AddEncryptedExtensionCommand}" Margin="0,0,8,0"/>
-                                <Button Content="{DynamicResource TestCryptoSoft}" Style="{StaticResource GhostBtn}" Command="{Binding TestCryptoSoftCommand}"/>
-                            </WrapPanel>
-                        </StackPanel>
-                    </Border>
+                        <TabItem Header="{DynamicResource Encryption}" Style="{StaticResource SettingsTabItem}">
+                            <Border Style="{StaticResource CardBorder}" Margin="0,12,0,14">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="260"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <TextBlock Text="{DynamicResource Encryption}" Style="{StaticResource SectionTitle}"/>
+                                        <TextBlock Text="{DynamicResource EncryptedExtensions}" Style="{StaticResource FieldLabel}"/>
+                                        <ItemsControl ItemsSource="{Binding EncryptedExtensionChips}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border Background="{StaticResource MutedSurface}" CornerRadius="10" Padding="10,4" Margin="0,0,8,8">
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock Text="{Binding}"/>
+                                                            <Button Content="x" Style="{StaticResource SmallGhostBtn}" Padding="6,0" Margin="8,0,0,0" Command="{Binding DataContext.RemoveEncryptedExtensionCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
+                                                        </StackPanel>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                        <WrapPanel>
+                                            <TextBox Text="{Binding NewEncryptedExtension, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource ModernTextBox}" Width="160" Margin="0,0,8,0"/>
+                                            <Button Content="{DynamicResource Add}" Style="{StaticResource GhostBtn}" Command="{Binding AddEncryptedExtensionCommand}"/>
+                                        </WrapPanel>
+                                    </StackPanel>
+                                    <Border Grid.Column="1" Background="{StaticResource MutedSurface}" CornerRadius="8" Padding="14" Margin="18,0,0,0" VerticalAlignment="Top">
+                                        <StackPanel>
+                                            <TextBlock Text="{DynamicResource TestCryptoSoft}" FontWeight="SemiBold"/>
+                                            <TextBlock Text="{Binding CryptoIndicator}" Style="{StaticResource PathText}" TextWrapping="Wrap" Margin="0,8,0,12"/>
+                                            <Button Content="{DynamicResource TestCryptoSoft}" Style="{StaticResource GhostBtn}" Command="{Binding TestCryptoSoftCommand}" HorizontalAlignment="Stretch"/>
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
+                            </Border>
+                        </TabItem>
 
-                    <Border Style="{StaticResource CardBorder}" Margin="0,0,0,14">
-                        <StackPanel>
-                            <TextBlock Text="{DynamicResource BusinessSoftware}" Style="{StaticResource SectionTitle}"/>
-                            <TextBlock Text="{DynamicResource BusinessProcessName}" Style="{StaticResource FieldLabel}"/>
-                            <ComboBox Text="{Binding BusinessSoftware, UpdateSourceTrigger=PropertyChanged}"
-                                      ItemsSource="{Binding RunningProcessNames}"
-                                      IsEditable="True"
-                                      Style="{StaticResource ModernComboBox}"
-                                      Width="320"
-                                      HorizontalAlignment="Left"/>
-                            <Button Content="{DynamicResource RefreshProcesses}" Style="{StaticResource GhostBtn}" Command="{Binding RefreshProcessesCommand}" HorizontalAlignment="Left" Margin="0,12,0,0"/>
-                        </StackPanel>
-                    </Border>
+                        <TabItem Header="{DynamicResource BusinessSoftware}" Style="{StaticResource SettingsTabItem}">
+                            <Border Style="{StaticResource CardBorder}" Margin="0,12,0,14">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="260"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <TextBlock Text="{DynamicResource BusinessSoftware}" Style="{StaticResource SectionTitle}"/>
+                                        <TextBlock Text="{DynamicResource BusinessProcessName}" Style="{StaticResource FieldLabel}"/>
+                                        <ComboBox Text="{Binding BusinessSoftware, UpdateSourceTrigger=PropertyChanged}"
+                                                  ItemsSource="{Binding RunningProcessNames}"
+                                                  IsEditable="True"
+                                                  Style="{StaticResource ModernComboBox}"
+                                                  Width="320"
+                                                  HorizontalAlignment="Left"/>
+                                        <Button Content="{DynamicResource RefreshProcesses}" Style="{StaticResource GhostBtn}" Command="{Binding RefreshProcessesCommand}" HorizontalAlignment="Left" Margin="0,12,0,0"/>
+                                    </StackPanel>
+                                    <Border Grid.Column="1" Background="{StaticResource MutedSurface}" CornerRadius="8" Padding="14" Margin="18,0,0,0" VerticalAlignment="Top">
+                                        <StackPanel>
+                                            <TextBlock Text="{DynamicResource BusinessSoftware}" FontWeight="SemiBold"/>
+                                            <TextBlock Text="{Binding BusinessPauseIndicator}" Style="{StaticResource PathText}" TextWrapping="Wrap" Margin="0,8,0,0"/>
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
+                            </Border>
+                        </TabItem>
+                    </TabControl>
 
                     <TextBlock Text="{Binding SettingsError}" Style="{StaticResource ErrorText}" Margin="0,0,0,8"/>
                     <Button Content="{DynamicResource SaveSettings}" Style="{StaticResource PrimaryBtn}" Command="{Binding SaveSettingsCommand}" HorizontalAlignment="Left" Padding="20,10"/>
