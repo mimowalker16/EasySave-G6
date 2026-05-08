@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
@@ -14,6 +15,8 @@ namespace EasySave.Core.Services
     /// </summary>
     public class SettingsService
     {
+        private static readonly ConcurrentDictionary<string, object> FileLocks = new();
+
         private readonly string _settingsFile;
 
         private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
@@ -35,23 +38,54 @@ namespace EasySave.Core.Services
         /// <summary>Loads settings from disk. Returns defaults if not found.</summary>
         public AppSettings Load()
         {
-            if (!File.Exists(_settingsFile))
-                return new AppSettings();
-
-            try
+            lock (GetFileLock())
             {
-                string json = File.ReadAllText(_settingsFile);
-                return JsonSerializer.Deserialize<AppSettings>(json, JsonOptions)
-                       ?? new AppSettings();
+                if (!File.Exists(_settingsFile))
+                    return new AppSettings();
+
+                try
+                {
+                    string json = File.ReadAllText(_settingsFile);
+                    return JsonSerializer.Deserialize<AppSettings>(json, JsonOptions)
+                           ?? new AppSettings();
+                }
+                catch { return new AppSettings(); }
             }
-            catch { return new AppSettings(); }
         }
 
         /// <summary>Saves the given settings to disk.</summary>
         public void Save(AppSettings settings)
         {
             string json = JsonSerializer.Serialize(settings, JsonOptions);
-            File.WriteAllText(_settingsFile, json);
+            lock (GetFileLock())
+            {
+                WriteAtomically(_settingsFile, json);
+            }
+        }
+
+        private object GetFileLock()
+            => FileLocks.GetOrAdd(Path.GetFullPath(_settingsFile), _ => new object());
+
+        private static void WriteAtomically(string targetFile, string content)
+        {
+            string? dir = Path.GetDirectoryName(targetFile);
+            if (!string.IsNullOrWhiteSpace(dir))
+                Directory.CreateDirectory(dir);
+
+            string tempFile = Path.Combine(dir ?? ".", $".{Path.GetFileName(targetFile)}.{Guid.NewGuid():N}.tmp");
+            try
+            {
+                File.WriteAllText(tempFile, content);
+                File.Move(tempFile, targetFile, overwrite: true);
+            }
+            finally
+            {
+                if (File.Exists(tempFile))
+                {
+                    try { File.Delete(tempFile); }
+                    catch { }
+                }
+            }
         }
     }
 

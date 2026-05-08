@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading.Tasks;
+using EasySave.Core.Models;
 using EasySave.Core.Services;
 using EasyLog;
 using Xunit;
@@ -124,6 +126,76 @@ namespace EasySave.Tests
             var loaded = _svc.Load();
             Assert.Equal(@"D:\CompanyLogs\EasySave", loaded.LogDirectory);
             Assert.Equal(JsonLogLayout.Ndjson, loaded.JsonLogLayout);
+        }
+
+        [Fact]
+        public async Task ConcurrentSaveAndLoad_SettingsFileRemainsReadable()
+        {
+            var writers = new List<Task>();
+            for (int i = 0; i < 20; i++)
+            {
+                int copy = i;
+                writers.Add(Task.Run(() =>
+                    _svc.Save(new AppSettings
+                    {
+                        BusinessSoftwareName = $"ERP-{copy}",
+                        LargeFileThresholdKb = copy,
+                        PriorityExtensions = new List<string> { ".prio" }
+                    })));
+            }
+
+            await Task.WhenAll(writers);
+
+            AppSettings loaded = _svc.Load();
+            Assert.StartsWith("ERP-", loaded.BusinessSoftwareName);
+            Assert.Contains(".prio", loaded.PriorityExtensions);
+        }
+    }
+
+    /// <summary>
+    /// Unit tests for backup-job configuration persistence.
+    /// </summary>
+    public class ConfigServiceTests : IDisposable
+    {
+        private readonly string _tempDir;
+        private readonly ConfigService _svc;
+
+        public ConfigServiceTests()
+        {
+            _tempDir = Path.Combine(Path.GetTempPath(), "EasySave_Jobs_" + Guid.NewGuid());
+            _svc = new ConfigService(_tempDir);
+        }
+
+        public void Dispose()
+        {
+            try { Directory.Delete(_tempDir, recursive: true); } catch { }
+        }
+
+        [Fact]
+        public async Task ConcurrentSaveAndLoad_JobsFileRemainsReadable()
+        {
+            var writers = new List<Task>();
+            for (int i = 0; i < 20; i++)
+            {
+                int copy = i;
+                writers.Add(Task.Run(() =>
+                    _svc.SaveJobs(new List<BackupJob>
+                    {
+                        new()
+                        {
+                            Name = $"Job-{copy}",
+                            SourceDirectory = $@"C:\Source{copy}",
+                            TargetDirectory = $@"C:\Target{copy}",
+                            Type = copy % 2 == 0 ? BackupType.Full : BackupType.Differential
+                        }
+                    })));
+            }
+
+            await Task.WhenAll(writers);
+
+            List<BackupJob> loaded = _svc.LoadJobs();
+            Assert.Single(loaded);
+            Assert.StartsWith("Job-", loaded[0].Name);
         }
     }
 

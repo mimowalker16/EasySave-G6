@@ -1,0 +1,2 @@
+Source B normal file.
+This should wait while any `.prio` file remains pending in active jobs.
