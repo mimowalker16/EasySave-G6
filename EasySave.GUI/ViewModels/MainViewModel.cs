@@ -2,13 +2,18 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Net.Http;
+using System.Net.Http.Json;
 using System.Runtime.CompilerServices;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
+using System.Xml.Linq;
 using EasyLog;
 using EasySave.Core.Models;
 using EasySave.Core.Services;
@@ -43,6 +48,9 @@ namespace EasySave.GUI.ViewModels
         private double _progress;
         private string _currentFileName = "-";
         private string _lastActionDisplay = "-";
+        private int _remainingFiles;
+        private string _remainingSizeDisplay = "-";
+        private string _pauseReason = "-";
 
         public int Index { get; set; }
         public string Name { get; set; } = string.Empty;
@@ -76,9 +84,46 @@ namespace EasySave.GUI.ViewModels
             set { _lastActionDisplay = string.IsNullOrWhiteSpace(value) ? "-" : value; OnPropertyChanged(); }
         }
 
+        public int RemainingFiles
+        {
+            get => _remainingFiles;
+            set { _remainingFiles = value; OnPropertyChanged(); }
+        }
+
+        public string RemainingSizeDisplay
+        {
+            get => _remainingSizeDisplay;
+            set { _remainingSizeDisplay = string.IsNullOrWhiteSpace(value) ? "-" : value; OnPropertyChanged(); }
+        }
+
+        public string PauseReason
+        {
+            get => _pauseReason;
+            set { _pauseReason = string.IsNullOrWhiteSpace(value) ? "-" : value; OnPropertyChanged(); }
+        }
+
         public event PropertyChangedEventHandler? PropertyChanged;
         private void OnPropertyChanged([CallerMemberName] string? name = null)
             => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+    }
+
+    public sealed class HealthWarning
+    {
+        public string Title { get; init; } = string.Empty;
+        public string Detail { get; init; } = string.Empty;
+    }
+
+    public sealed class LogRow
+    {
+        public string Time { get; init; } = string.Empty;
+        public string Job { get; init; } = string.Empty;
+        public string Source { get; init; } = string.Empty;
+        public string Target { get; init; } = string.Empty;
+        public string Size { get; init; } = string.Empty;
+        public string TransferTime { get; init; } = string.Empty;
+        public string EncryptionTime { get; init; } = string.Empty;
+        public string Result { get; init; } = string.Empty;
+        public bool IsError { get; init; }
     }
 
     public class MainViewModel : INotifyPropertyChanged
@@ -97,11 +142,17 @@ namespace EasySave.GUI.ViewModels
         private JobRow? _selectedJob;
         private string _statusMessage = string.Empty;
         private bool _isEditing;
-        private string _currentPage = "Jobs";
+        private string _currentPage = "Dashboard";
         private string _formNameError = string.Empty;
         private string _formSourceError = string.Empty;
         private string _formTargetError = string.Empty;
         private string _settingsError = string.Empty;
+        private string _lastSuccessfulBackup = "-";
+        private string _logDateText = DateTime.Today.ToString("yyyy-MM-dd");
+        private string _logJobFilter = string.Empty;
+        private int _logStatusFilterIndex;
+        private string _newPriorityExtension = string.Empty;
+        private string _newEncryptedExtension = string.Empty;
 
         private int _languageIndex;
         private int _logFormatIndex;
@@ -113,6 +164,13 @@ namespace EasySave.GUI.ViewModels
         private long _largeFileThresholdKb;
         private string _businessSoftware = string.Empty;
         private string _encryptedExtensionsText = string.Empty;
+
+        public ObservableCollection<HealthWarning> HealthWarnings { get; } = new();
+        public ObservableCollection<LogRow> LogRows { get; } = new();
+        public ObservableCollection<LogRow> RecentActivity { get; } = new();
+        public ObservableCollection<string> PriorityExtensionChips { get; } = new();
+        public ObservableCollection<string> EncryptedExtensionChips { get; } = new();
+        public ObservableCollection<string> RunningProcessNames { get; } = new();
 
         public string FormName
         {
@@ -178,6 +236,31 @@ namespace EasySave.GUI.ViewModels
 
         public bool HasJobs => JobRows.Count > 0;
         public bool HasNoJobs => JobRows.Count == 0;
+        public bool HasWarnings => HealthWarnings.Count > 0;
+        public bool HasNoWarnings => HealthWarnings.Count == 0;
+        public bool HasLogs => LogRows.Count > 0;
+        public bool HasNoLogs => LogRows.Count == 0;
+        public int TotalJobs => JobRows.Count;
+        public int RunningJobs => JobRows.Count(j => j.Status == "Running" || j.Status == "Stopping");
+        public int PausedJobs => JobRows.Count(j => j.Status == "Paused");
+        public int FailedJobs => JobRows.Count(j => j.Status.StartsWith("Error", StringComparison.OrdinalIgnoreCase) || j.Status == "Canceled");
+        public string LastSuccessfulBackup
+        {
+            get => _lastSuccessfulBackup;
+            private set { _lastSuccessfulBackup = value; OnPropertyChanged(); }
+        }
+        public string PriorityIndicator => PriorityExtensionChips.Count > 0
+            ? $"{PriorityExtensionChips.Count} priority extension(s) configured"
+            : "No priority extensions configured";
+        public string LargeFileIndicator => LargeFileThresholdKb > 0
+            ? $"Large-file lock above {LargeFileThresholdKb} KB"
+            : "Large-file throttling disabled";
+        public string CryptoIndicator => EncryptedExtensionChips.Count > 0
+            ? $"{EncryptedExtensionChips.Count} encrypted extension(s); CryptoSoft serialized"
+            : "Encryption disabled";
+        public string BusinessPauseIndicator => string.IsNullOrWhiteSpace(BusinessSoftware)
+            ? "Business software pause disabled"
+            : $"Pauses while '{BusinessSoftware}' is running";
 
         public string FormNameError
         {
@@ -259,19 +342,49 @@ namespace EasySave.GUI.ViewModels
         public long LargeFileThresholdKb
         {
             get => _largeFileThresholdKb;
-            set { _largeFileThresholdKb = value; OnPropertyChanged(); }
+            set { _largeFileThresholdKb = value; OnPropertyChanged(); OnPropertyChanged(nameof(LargeFileIndicator)); }
         }
 
         public string BusinessSoftware
         {
             get => _businessSoftware;
-            set { _businessSoftware = value; OnPropertyChanged(); }
+            set { _businessSoftware = value; OnPropertyChanged(); OnPropertyChanged(nameof(BusinessPauseIndicator)); }
         }
 
         public string EncryptedExtensionsText
         {
             get => _encryptedExtensionsText;
             set { _encryptedExtensionsText = value; OnPropertyChanged(); }
+        }
+
+        public string LogDateText
+        {
+            get => _logDateText;
+            set { _logDateText = value; OnPropertyChanged(); }
+        }
+
+        public string LogJobFilter
+        {
+            get => _logJobFilter;
+            set { _logJobFilter = value; OnPropertyChanged(); }
+        }
+
+        public int LogStatusFilterIndex
+        {
+            get => _logStatusFilterIndex;
+            set { _logStatusFilterIndex = value; OnPropertyChanged(); }
+        }
+
+        public string NewPriorityExtension
+        {
+            get => _newPriorityExtension;
+            set { _newPriorityExtension = value; OnPropertyChanged(); }
+        }
+
+        public string NewEncryptedExtension
+        {
+            get => _newEncryptedExtension;
+            set { _newEncryptedExtension = value; OnPropertyChanged(); }
         }
 
         public ICommand SaveJobCommand { get; }
@@ -291,6 +404,17 @@ namespace EasySave.GUI.ViewModels
         public ICommand BrowseSourceCommand { get; }
         public ICommand BrowseTargetCommand { get; }
         public ICommand BrowseLogDirectoryCommand { get; }
+        public ICommand RefreshLogsCommand { get; }
+        public ICommand OpenLogFileCommand { get; }
+        public ICommand ExportLogFileCommand { get; }
+        public ICommand TestCryptoSoftCommand { get; }
+        public ICommand TestCentralLoggingCommand { get; }
+        public ICommand RefreshProcessesCommand { get; }
+        public ICommand AddPriorityExtensionCommand { get; }
+        public ICommand RemovePriorityExtensionCommand { get; }
+        public ICommand AddEncryptedExtensionCommand { get; }
+        public ICommand RemoveEncryptedExtensionCommand { get; }
+        public ICommand PreviewJobCommand { get; }
 
         public MainViewModel(BackupViewModel core)
         {
@@ -311,6 +435,9 @@ namespace EasySave.GUI.ViewModels
             LargeFileThresholdKb = core.Settings.LargeFileThresholdKb;
             BusinessSoftware = core.Settings.BusinessSoftwareName;
             EncryptedExtensionsText = string.Join(",", core.Settings.EncryptedExtensions);
+            ResetChips(PriorityExtensionChips, core.Settings.PriorityExtensions);
+            ResetChips(EncryptedExtensionChips, core.Settings.EncryptedExtensions);
+            LanguageIndex = string.Equals(core.Settings.UiLanguage, "fr", StringComparison.OrdinalIgnoreCase) ? 1 : 0;
 
             SaveJobCommand = new RelayCommand(_ => SaveJob(), _ => CanSaveJob);
             DeleteJobCommand = new RelayCommand(DeleteJob, _ => !IsBusy);
@@ -329,8 +456,22 @@ namespace EasySave.GUI.ViewModels
             BrowseSourceCommand = new RelayCommand(_ => BrowseFolder(path => FormSource = path, FormSource));
             BrowseTargetCommand = new RelayCommand(_ => BrowseFolder(path => FormTarget = path, FormTarget));
             BrowseLogDirectoryCommand = new RelayCommand(_ => BrowseFolder(path => LogDirectoryText = path, LogDirectoryText));
+            RefreshLogsCommand = new RelayCommand(_ => RefreshLogs());
+            OpenLogFileCommand = new RelayCommand(_ => OpenCurrentLogFile());
+            ExportLogFileCommand = new RelayCommand(_ => ExportCurrentLogFile());
+            TestCryptoSoftCommand = new RelayCommand(_ => TestCryptoSoft());
+            TestCentralLoggingCommand = new RelayCommand(_ => _ = TestCentralLoggingAsync());
+            RefreshProcessesCommand = new RelayCommand(_ => RefreshProcesses());
+            AddPriorityExtensionCommand = new RelayCommand(_ => AddExtensionChip(PriorityExtensionChips, NewPriorityExtension, value => NewPriorityExtension = value));
+            RemovePriorityExtensionCommand = new RelayCommand(o => RemoveExtensionChip(PriorityExtensionChips, o?.ToString()));
+            AddEncryptedExtensionCommand = new RelayCommand(_ => AddExtensionChip(EncryptedExtensionChips, NewEncryptedExtension, value => NewEncryptedExtension = value));
+            RemoveEncryptedExtensionCommand = new RelayCommand(o => RemoveExtensionChip(EncryptedExtensionChips, o?.ToString()));
+            PreviewJobCommand = new RelayCommand(o => PreviewJob(o as JobRow), _ => !IsBusy);
 
             RefreshJobRows();
+            RefreshDashboard();
+            RefreshLogs();
+            RefreshProcesses();
             StartNewJob();
             StatusMessage = "Ready.";
         }
@@ -381,12 +522,19 @@ namespace EasySave.GUI.ViewModels
         {
             var row = parameter as JobRow ?? SelectedJob;
             if (row == null || IsBusy) return;
+            if (!ValidateRunJob(row))
+                return;
             _ = ExecuteJobAsync(row);
         }
 
         private void ExecuteAllKickoff()
         {
             if (IsBusy) return;
+            foreach (JobRow row in JobRows)
+            {
+                if (!ValidateRunJob(row))
+                    return;
+            }
             _ = ExecuteAllAsync();
         }
 
@@ -412,6 +560,8 @@ namespace EasySave.GUI.ViewModels
             finally
             {
                 IsBusy = false;
+                RefreshDashboard();
+                RefreshLogs();
                 _runCts?.Dispose();
                 _runCts = null;
             }
@@ -443,6 +593,8 @@ namespace EasySave.GUI.ViewModels
             finally
             {
                 IsBusy = false;
+                RefreshDashboard();
+                RefreshLogs();
                 _runCts?.Dispose();
                 _runCts = null;
             }
@@ -553,15 +705,20 @@ namespace EasySave.GUI.ViewModels
                 },
                 CentralLogEndpoint = CentralLogEndpoint.Trim(),
                 CentralClientId = CentralClientId.Trim(),
-                PriorityExtensions = ParseExtensions(PriorityExtensionsText),
+                PriorityExtensions = PriorityExtensionChips.ToList(),
                 LargeFileThresholdKb = LargeFileThresholdKb,
-                EncryptedExtensions = ParseExtensions(EncryptedExtensionsText),
-                BusinessSoftwareName = BusinessSoftware.Trim()
+                EncryptedExtensions = EncryptedExtensionChips.ToList(),
+                BusinessSoftwareName = BusinessSoftware.Trim(),
+                UiLanguage = LanguageIndex == 1 ? "fr" : "en"
             };
 
             _core.UpdateSettings(settings);
+            PriorityExtensionsText = string.Join(",", PriorityExtensionChips);
+            EncryptedExtensionsText = string.Join(",", EncryptedExtensionChips);
             SettingsError = string.Empty;
             StatusMessage = "Settings saved.";
+            RefreshDashboard();
+            RefreshLogs();
         }
 
         private void OnCoreStateChanged(int zeroBasedIndex, BackupState state)
@@ -583,6 +740,14 @@ namespace EasySave.GUI.ViewModels
                 };
                 row.CurrentFileName = Path.GetFileName(state.CurrentSourceFile);
                 row.LastActionDisplay = FormatTimestamp(state.LastActionTimestamp);
+                row.RemainingFiles = state.RemainingFiles;
+                row.RemainingSizeDisplay = FormatBytes(state.RemainingSize);
+                row.PauseReason = row.Status == "Paused"
+                    ? BuildPauseReason(state)
+                    : "-";
+                if (state.State == BackupStateType.End)
+                    LastSuccessfulBackup = FormatTimestamp(state.LastActionTimestamp);
+                RefreshDashboard();
             });
         }
 
@@ -592,6 +757,8 @@ namespace EasySave.GUI.ViewModels
             for (int i = 0; i < _core.Jobs.Count; i++)
             {
                 BackupJob job = _core.Jobs[i];
+                bool sourceExists = Directory.Exists(job.SourceDirectory);
+                bool targetExists = Directory.Exists(job.TargetDirectory);
                 JobRows.Add(new JobRow
                 {
                     Index = i + 1,
@@ -599,11 +766,15 @@ namespace EasySave.GUI.ViewModels
                     Type = job.Type.ToString(),
                     Source = job.SourceDirectory,
                     Target = job.TargetDirectory,
-                    Status = "Idle"
+                    Status = "Idle",
+                    PauseReason = sourceExists && targetExists
+                        ? "-"
+                        : "Path check needed"
                 });
             }
             OnPropertyChanged(nameof(HasJobs));
             OnPropertyChanged(nameof(HasNoJobs));
+            RefreshDashboard();
             CommandManager.InvalidateRequerySuggested();
         }
 
@@ -647,6 +818,445 @@ namespace EasySave.GUI.ViewModels
             OnPropertyChanged(nameof(CanSaveJob));
             CommandManager.InvalidateRequerySuggested();
         }
+
+        private void RefreshDashboard()
+        {
+            HealthWarnings.Clear();
+            foreach (BackupJob job in _core.Jobs)
+            {
+                if (!Directory.Exists(job.SourceDirectory))
+                {
+                    HealthWarnings.Add(new HealthWarning
+                    {
+                        Title = $"Missing source: {job.Name}",
+                        Detail = job.SourceDirectory
+                    });
+                }
+
+                if (!Directory.Exists(job.TargetDirectory))
+                {
+                    HealthWarnings.Add(new HealthWarning
+                    {
+                        Title = $"Target not ready: {job.Name}",
+                        Detail = job.TargetDirectory
+                    });
+                }
+            }
+
+            string cryptoSoftPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "CryptoSoft.exe");
+            if (EncryptedExtensionChips.Count > 0 && !File.Exists(cryptoSoftPath))
+            {
+                HealthWarnings.Add(new HealthWarning
+                {
+                    Title = "CryptoSoft unavailable",
+                    Detail = cryptoSoftPath
+                });
+            }
+
+            if (LogDestinationModeIndex != 0 && string.IsNullOrWhiteSpace(CentralLogEndpoint))
+            {
+                HealthWarnings.Add(new HealthWarning
+                {
+                    Title = "Central logging endpoint missing",
+                    Detail = "Central logging is selected but no endpoint is configured."
+                });
+            }
+
+            if (!string.IsNullOrWhiteSpace(BusinessSoftware) && new BusinessSoftwareService().IsRunning(BusinessSoftware))
+            {
+                HealthWarnings.Add(new HealthWarning
+                {
+                    Title = "Business software detected",
+                    Detail = $"Backups pause while '{BusinessSoftware}' is running."
+                });
+            }
+
+            OnPropertyChanged(nameof(TotalJobs));
+            OnPropertyChanged(nameof(RunningJobs));
+            OnPropertyChanged(nameof(PausedJobs));
+            OnPropertyChanged(nameof(FailedJobs));
+            OnPropertyChanged(nameof(HasWarnings));
+            OnPropertyChanged(nameof(HasNoWarnings));
+            OnPropertyChanged(nameof(PriorityIndicator));
+            OnPropertyChanged(nameof(LargeFileIndicator));
+            OnPropertyChanged(nameof(CryptoIndicator));
+            OnPropertyChanged(nameof(BusinessPauseIndicator));
+        }
+
+        private void RefreshLogs()
+        {
+            LogRows.Clear();
+            RecentActivity.Clear();
+
+            DateTime date = DateTime.TryParse(LogDateText, out DateTime parsed)
+                ? parsed.Date
+                : DateTime.Today;
+
+            string logDir = LogDirectoryResolver.Resolve(LogDirectoryText);
+            foreach (LogRow row in LoadLogRows(logDir, date)
+                         .Where(PassesLogFilters)
+                         .OrderByDescending(r => r.Time))
+            {
+                LogRows.Add(row);
+                if (RecentActivity.Count < 6)
+                    RecentActivity.Add(row);
+            }
+
+            LogDateText = date.ToString("yyyy-MM-dd");
+            OnPropertyChanged(nameof(HasLogs));
+            OnPropertyChanged(nameof(HasNoLogs));
+            if (RecentActivity.FirstOrDefault(r => r.Result == "OK") is { } success)
+                LastSuccessfulBackup = success.Time;
+        }
+
+        private IEnumerable<LogRow> LoadLogRows(string logDir, DateTime date)
+        {
+            string jsonFile = Path.Combine(logDir, $"{date:yyyy-MM-dd}.json");
+            if (File.Exists(jsonFile))
+            {
+                foreach (LogRow row in LoadJsonLogRows(jsonFile))
+                    yield return row;
+            }
+
+            string xmlFile = Path.Combine(logDir, $"{date:yyyy-MM-dd}.xml");
+            if (File.Exists(xmlFile))
+            {
+                foreach (LogRow row in LoadXmlLogRows(xmlFile))
+                    yield return row;
+            }
+        }
+
+        private static IEnumerable<LogRow> LoadJsonLogRows(string file)
+        {
+            using JsonDocument document = JsonDocument.Parse(File.ReadAllText(file));
+            IEnumerable<JsonElement> entries = document.RootElement.ValueKind switch
+            {
+                JsonValueKind.Array => document.RootElement.EnumerateArray(),
+                JsonValueKind.Object => new[] { document.RootElement },
+                _ => Enumerable.Empty<JsonElement>()
+            };
+
+            foreach (JsonElement entry in entries)
+                yield return BuildLogRow(
+                    GetJsonString(entry, "Timestamp"),
+                    GetJsonString(entry, "BackupJobName"),
+                    GetJsonString(entry, "SourceFilePath"),
+                    GetJsonString(entry, "TargetFilePath"),
+                    GetJsonLong(entry, "FileSize"),
+                    GetJsonLong(entry, "TransferTimeMs"),
+                    GetJsonLong(entry, "EncryptionTimeMs"));
+        }
+
+        private static IEnumerable<LogRow> LoadXmlLogRows(string file)
+        {
+            XDocument document = XDocument.Load(file);
+            foreach (XElement entry in document.Descendants("LogEntry"))
+            {
+                yield return BuildLogRow(
+                    (string?)entry.Element("Timestamp") ?? string.Empty,
+                    (string?)entry.Element("BackupJobName") ?? string.Empty,
+                    (string?)entry.Element("SourceFilePath") ?? string.Empty,
+                    (string?)entry.Element("TargetFilePath") ?? string.Empty,
+                    ParseLong((string?)entry.Element("FileSize")),
+                    ParseLong((string?)entry.Element("TransferTimeMs")),
+                    ParseLong((string?)entry.Element("EncryptionTimeMs")));
+            }
+        }
+
+        private bool PassesLogFilters(LogRow row)
+        {
+            if (!string.IsNullOrWhiteSpace(LogJobFilter)
+                && !row.Job.Contains(LogJobFilter.Trim(), StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            return LogStatusFilterIndex switch
+            {
+                1 => row.Result == "OK",
+                2 => row.Result == "Error",
+                _ => true
+            };
+        }
+
+        private static LogRow BuildLogRow(
+            string timestamp,
+            string job,
+            string source,
+            string target,
+            long size,
+            long transferTime,
+            long encryptionTime)
+        {
+            bool isError = transferTime < 0 || encryptionTime < 0;
+            return new LogRow
+            {
+                Time = DateTime.TryParse(timestamp, out DateTime dt) ? dt.ToString("HH:mm:ss") : timestamp,
+                Job = job,
+                Source = source,
+                Target = target,
+                Size = FormatBytes(size),
+                TransferTime = $"{transferTime} ms",
+                EncryptionTime = $"{encryptionTime} ms",
+                Result = isError ? "Error" : "OK",
+                IsError = isError
+            };
+        }
+
+        private void OpenCurrentLogFile()
+        {
+            string path = GetCurrentLogFilePath();
+            if (!File.Exists(path))
+            {
+                StatusMessage = "No log file found for the selected date and format.";
+                return;
+            }
+
+            Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
+        }
+
+        private void ExportCurrentLogFile()
+        {
+            string path = GetCurrentLogFilePath();
+            if (!File.Exists(path))
+            {
+                StatusMessage = "No log file found for the selected date and format.";
+                return;
+            }
+
+            using var dialog = new Forms.SaveFileDialog
+            {
+                FileName = Path.GetFileName(path),
+                Filter = LogFormatIndex == 1 ? "XML log (*.xml)|*.xml|All files (*.*)|*.*" : "JSON log (*.json)|*.json|All files (*.*)|*.*",
+                OverwritePrompt = true
+            };
+
+            if (dialog.ShowDialog() == Forms.DialogResult.OK)
+            {
+                File.Copy(path, dialog.FileName, overwrite: true);
+                StatusMessage = $"Log exported to {dialog.FileName}.";
+            }
+        }
+
+        private string GetCurrentLogFilePath()
+        {
+            DateTime date = DateTime.TryParse(LogDateText, out DateTime parsed) ? parsed.Date : DateTime.Today;
+            string logDir = LogDirectoryResolver.Resolve(LogDirectoryText);
+            string extension = LogFormatIndex == 1 ? "xml" : "json";
+            return Path.Combine(logDir, $"{date:yyyy-MM-dd}.{extension}");
+        }
+
+        private void TestCryptoSoft()
+        {
+            string cryptoSoftPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "CryptoSoft.exe");
+            StatusMessage = File.Exists(cryptoSoftPath)
+                ? "CryptoSoft is available."
+                : $"CryptoSoft not found: {cryptoSoftPath}";
+            RefreshDashboard();
+        }
+
+        private async Task TestCentralLoggingAsync()
+        {
+            if (string.IsNullOrWhiteSpace(CentralLogEndpoint))
+            {
+                StatusMessage = "Central endpoint is empty.";
+                return;
+            }
+
+            try
+            {
+                using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(3) };
+                var payload = new
+                {
+                    clientId = string.IsNullOrWhiteSpace(CentralClientId) ? Environment.MachineName : CentralClientId.Trim(),
+                    format = LogFormatIndex == 1 ? "Xml" : "Json",
+                    timestamp = DateTime.Now.ToString("o"),
+                    entry = new
+                    {
+                        Timestamp = DateTime.Now.ToString("o"),
+                        BackupJobName = "Connectivity test",
+                        SourceFilePath = "EasySave.GUI",
+                        TargetFilePath = "LogCentralizer",
+                        FileSize = 0,
+                        TransferTimeMs = 0,
+                        EncryptionTimeMs = 0
+                    }
+                };
+
+                using HttpResponseMessage response = await client.PostAsJsonAsync(CentralLogEndpoint.Trim(), payload);
+                StatusMessage = response.IsSuccessStatusCode
+                    ? "Central logging endpoint answered successfully."
+                    : $"Central logging test failed: {(int)response.StatusCode}";
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"Central logging test failed: {ex.Message}";
+            }
+
+            RefreshDashboard();
+        }
+
+        private void RefreshProcesses()
+        {
+            RunningProcessNames.Clear();
+            foreach (string processName in Process.GetProcesses()
+                         .Select(p => p.ProcessName)
+                         .Where(name => !string.IsNullOrWhiteSpace(name))
+                         .Distinct(StringComparer.OrdinalIgnoreCase)
+                         .OrderBy(name => name))
+            {
+                RunningProcessNames.Add(processName);
+            }
+        }
+
+        private void PreviewJob(JobRow? row)
+        {
+            if (row == null) return;
+            if (!Directory.Exists(row.Source))
+            {
+                StatusMessage = $"{row.Name}: source folder is missing.";
+                return;
+            }
+
+            int fileCount = Directory.GetFiles(row.Source, "*", SearchOption.AllDirectories).Length;
+            long totalSize = Directory.GetFiles(row.Source, "*", SearchOption.AllDirectories)
+                .Sum(path => new FileInfo(path).Length);
+            StatusMessage = $"{row.Name} preview: {fileCount} file(s), {FormatBytes(totalSize)} to inspect/copy.";
+        }
+
+        private bool ValidateRunJob(JobRow row)
+        {
+            if (!Directory.Exists(row.Source))
+            {
+                StatusMessage = $"{row.Name}: source folder does not exist.";
+                return false;
+            }
+
+            if (!TryEnsureDirectory(row.Target))
+            {
+                StatusMessage = $"{row.Name}: target folder is not accessible.";
+                return false;
+            }
+
+            string source = NormalizeDirectoryPath(row.Source);
+            string target = NormalizeDirectoryPath(row.Target);
+            if (string.Equals(source, target, StringComparison.OrdinalIgnoreCase))
+            {
+                StatusMessage = $"{row.Name}: source and target cannot be the same folder.";
+                return false;
+            }
+
+            if (target.StartsWith(source + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+            {
+                StatusMessage = $"{row.Name}: target cannot be inside the source folder.";
+                return false;
+            }
+
+            return true;
+        }
+
+        private static bool TryEnsureDirectory(string path)
+        {
+            try
+            {
+                Directory.CreateDirectory(path);
+                return Directory.Exists(path);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static string NormalizeDirectoryPath(string path)
+            => Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+        private void AddExtensionChip(ObservableCollection<string> chips, string rawValue, Action<string> clearInput)
+        {
+            string ext = NormalizeExtension(rawValue);
+            if (string.IsNullOrWhiteSpace(ext))
+                return;
+
+            if (!chips.Contains(ext, StringComparer.OrdinalIgnoreCase))
+                chips.Add(ext);
+
+            clearInput(string.Empty);
+            SyncExtensionTexts();
+        }
+
+        private void RemoveExtensionChip(ObservableCollection<string> chips, string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return;
+
+            string? existing = chips.FirstOrDefault(c => c.Equals(value, StringComparison.OrdinalIgnoreCase));
+            if (existing != null)
+                chips.Remove(existing);
+
+            SyncExtensionTexts();
+        }
+
+        private void SyncExtensionTexts()
+        {
+            PriorityExtensionsText = string.Join(",", PriorityExtensionChips);
+            EncryptedExtensionsText = string.Join(",", EncryptedExtensionChips);
+            OnPropertyChanged(nameof(PriorityIndicator));
+            OnPropertyChanged(nameof(CryptoIndicator));
+            RefreshDashboard();
+        }
+
+        private static void ResetChips(ObservableCollection<string> chips, IEnumerable<string> values)
+        {
+            chips.Clear();
+            foreach (string value in values.Select(NormalizeExtension)
+                         .Where(value => !string.IsNullOrWhiteSpace(value))
+                         .Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                chips.Add(value);
+            }
+        }
+
+        private static string NormalizeExtension(string raw)
+        {
+            string ext = raw.Trim().ToLowerInvariant();
+            if (string.IsNullOrWhiteSpace(ext))
+                return string.Empty;
+
+            return ext.StartsWith('.') ? ext : "." + ext;
+        }
+
+        private static string BuildPauseReason(BackupState state)
+        {
+            if (string.IsNullOrWhiteSpace(state.CurrentSourceFile))
+                return "Waiting for coordination rule or pause request.";
+
+            return $"Paused before/after {Path.GetFileName(state.CurrentSourceFile)}";
+        }
+
+        private static string FormatBytes(long bytes)
+        {
+            string[] units = { "B", "KB", "MB", "GB" };
+            double value = Math.Max(0, bytes);
+            int unit = 0;
+            while (value >= 1024 && unit < units.Length - 1)
+            {
+                value /= 1024;
+                unit++;
+            }
+
+            return unit == 0 ? $"{value:0} {units[unit]}" : $"{value:0.0} {units[unit]}";
+        }
+
+        private static string GetJsonString(JsonElement element, string propertyName)
+            => element.TryGetProperty(propertyName, out JsonElement property)
+                ? property.GetString() ?? string.Empty
+                : string.Empty;
+
+        private static long GetJsonLong(JsonElement element, string propertyName)
+            => element.TryGetProperty(propertyName, out JsonElement property) && property.TryGetInt64(out long value)
+                ? value
+                : 0;
+
+        private static long ParseLong(string? value)
+            => long.TryParse(value, out long parsed) ? parsed : 0;
 
         private static List<string> ParseExtensions(string rawText)
         {

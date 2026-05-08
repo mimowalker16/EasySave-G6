@@ -39,6 +39,7 @@ namespace EasySave.Tests
             Assert.Equal(0, settings.LargeFileThresholdKb);
             Assert.Empty(settings.EncryptedExtensions);
             Assert.Empty(settings.BusinessSoftwareName);
+            Assert.Equal("en", settings.UiLanguage);
         }
 
         [Fact]
@@ -87,7 +88,8 @@ namespace EasySave.Tests
                 CentralLogEndpoint = "http://localhost:8080/api/logs",
                 CentralClientId = "POSTE-01",
                 PriorityExtensions = new List<string> { ".zip", ".bak" },
-                LargeFileThresholdKb = 512
+                LargeFileThresholdKb = 512,
+                UiLanguage = "fr"
             };
 
             _svc.Save(original);
@@ -99,6 +101,7 @@ namespace EasySave.Tests
             Assert.Equal(original.CentralClientId, loaded.CentralClientId);
             Assert.Contains(".zip", loaded.PriorityExtensions);
             Assert.Equal(512, loaded.LargeFileThresholdKb);
+            Assert.Equal("fr", loaded.UiLanguage);
         }
 
         [Fact]

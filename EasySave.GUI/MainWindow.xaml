@@ -3,8 +3,8 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:EasySave.GUI"
         Title="EasySave v3.0"
-        Width="1280" Height="760"
-        MinWidth="1040" MinHeight="640"
+        Width="1360" Height="800"
+        MinWidth="1100" MinHeight="680"
         WindowStartupLocation="CenterScreen"
         Background="{StaticResource BgDeep}"
         Foreground="{StaticResource TextPrimary}"
@@ -30,6 +30,11 @@
             <Setter Property="Margin" Value="0,0,0,2"/>
         </Style>
 
+        <Style x:Key="SummaryNumber" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="28"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+        </Style>
+
         <Style x:Key="StatusChip" TargetType="Border">
             <Setter Property="Background" Value="{StaticResource ChipIdle}"/>
             <Setter Property="CornerRadius" Value="10"/>
@@ -49,11 +54,21 @@
                 </DataTrigger>
             </Style.Triggers>
         </Style>
+
+        <Style x:Key="LogListItem" TargetType="ListViewItem">
+            <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsError}" Value="True">
+                    <Setter Property="Foreground" Value="{StaticResource Danger}"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
     </Window.Resources>
 
     <Grid>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="220"/>
+            <ColumnDefinition Width="230"/>
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
 
@@ -63,42 +78,122 @@
                 BorderThickness="0,0,1,0">
             <DockPanel>
                 <StackPanel DockPanel.Dock="Top" Margin="20,26,20,18">
-                    <TextBlock Text="{DynamicResource AppTitle}"
-                               FontSize="22"
-                               FontWeight="Bold"
-                               Foreground="{StaticResource TextPrimary}"/>
-                    <TextBlock Text="{DynamicResource AppSubtitle}"
-                               FontSize="11"
-                               Foreground="{StaticResource TextSecondary}"
-                               Margin="0,3,0,0"/>
+                    <TextBlock Text="{DynamicResource AppTitle}" FontSize="22" FontWeight="Bold"/>
+                    <TextBlock Text="{DynamicResource AppSubtitle}" FontSize="11" Foreground="{StaticResource TextSecondary}" Margin="0,3,0,0"/>
                 </StackPanel>
 
                 <StackPanel DockPanel.Dock="Top" Margin="12,0">
-                    <Button Style="{StaticResource NavBtn}"
-                            Content="{DynamicResource NavJobs}"
-                            Command="{Binding NavigateCommand}"
-                            CommandParameter="Jobs"/>
-                    <Button Style="{StaticResource NavBtn}"
-                            Content="{DynamicResource NavSettings}"
-                            Command="{Binding NavigateCommand}"
-                            CommandParameter="Settings"
-                            Margin="0,6,0,0"/>
+                    <Button Style="{StaticResource NavBtn}" Content="{DynamicResource NavDashboard}" Command="{Binding NavigateCommand}" CommandParameter="Dashboard"/>
+                    <Button Style="{StaticResource NavBtn}" Content="{DynamicResource NavJobs}" Command="{Binding NavigateCommand}" CommandParameter="Jobs" Margin="0,6,0,0"/>
+                    <Button Style="{StaticResource NavBtn}" Content="{DynamicResource NavMonitor}" Command="{Binding NavigateCommand}" CommandParameter="Monitor" Margin="0,6,0,0"/>
+                    <Button Style="{StaticResource NavBtn}" Content="{DynamicResource NavLogs}" Command="{Binding NavigateCommand}" CommandParameter="Logs" Margin="0,6,0,0"/>
+                    <Button Style="{StaticResource NavBtn}" Content="{DynamicResource NavSettings}" Command="{Binding NavigateCommand}" CommandParameter="Settings" Margin="0,6,0,0"/>
                 </StackPanel>
 
-                <Border DockPanel.Dock="Bottom"
-                        Margin="14,14,14,18"
-                        Background="{StaticResource MutedSurface}"
-                        CornerRadius="8"
-                        Padding="12">
-                    <TextBlock Text="{Binding StatusMessage}"
-                               Foreground="{StaticResource TextSecondary}"
-                               FontSize="12"
-                               TextWrapping="Wrap"/>
+                <Border DockPanel.Dock="Bottom" Margin="14,14,14,18" Background="{StaticResource MutedSurface}" CornerRadius="8" Padding="12">
+                    <TextBlock Text="{Binding StatusMessage}" Foreground="{StaticResource TextSecondary}" FontSize="12" TextWrapping="Wrap"/>
                 </Border>
             </DockPanel>
         </Border>
 
         <Grid Grid.Column="1">
+            <ScrollViewer Visibility="{Binding CurrentPage, Converter={x:Static local:PageConverter.Instance}, ConverterParameter=Dashboard}"
+                          VerticalScrollBarVisibility="Auto" Padding="28,24">
+                <StackPanel>
+                    <Grid Margin="0,0,0,18">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="{DynamicResource DashboardTitle}" FontSize="26" FontWeight="Bold"/>
+                            <TextBlock Text="{DynamicResource DashboardSubtitle}" Foreground="{StaticResource TextSecondary}" Margin="0,4,0,0"/>
+                        </StackPanel>
+                        <Button Grid.Column="1" Content="{DynamicResource RunAll}" Style="{StaticResource SuccessBtn}" Command="{Binding ExecuteAllCommand}" VerticalAlignment="Center"/>
+                    </Grid>
+
+                    <UniformGrid Columns="4" Margin="0,0,0,16">
+                        <Border Style="{StaticResource CardBorder}" Margin="0,0,10,0">
+                            <StackPanel>
+                                <TextBlock Text="{DynamicResource TotalJobs}" Style="{StaticResource MetaLabel}"/>
+                                <TextBlock Text="{Binding TotalJobs}" Style="{StaticResource SummaryNumber}"/>
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource CardBorder}" Margin="0,0,10,0">
+                            <StackPanel>
+                                <TextBlock Text="{DynamicResource RunningJobs}" Style="{StaticResource MetaLabel}"/>
+                                <TextBlock Text="{Binding RunningJobs}" Style="{StaticResource SummaryNumber}" Foreground="{StaticResource Success}"/>
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource CardBorder}" Margin="0,0,10,0">
+                            <StackPanel>
+                                <TextBlock Text="{DynamicResource PausedFailedJobs}" Style="{StaticResource MetaLabel}"/>
+                                <TextBlock>
+                                    <Run Text="{Binding PausedJobs, Mode=OneWay}"/>
+                                    <Run Text=" / "/>
+                                    <Run Text="{Binding FailedJobs, Mode=OneWay}"/>
+                                </TextBlock>
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource CardBorder}">
+                            <StackPanel>
+                                <TextBlock Text="{DynamicResource LastSuccess}" Style="{StaticResource MetaLabel}"/>
+                                <TextBlock Text="{Binding LastSuccessfulBackup}" FontSize="18" FontWeight="SemiBold"/>
+                            </StackPanel>
+                        </Border>
+                    </UniformGrid>
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Border Grid.Column="0" Style="{StaticResource CardBorder}" Margin="0,0,8,0">
+                            <StackPanel>
+                                <TextBlock Text="{DynamicResource HealthWarnings}" Style="{StaticResource SectionTitle}"/>
+                                <TextBlock Text="{DynamicResource AllClear}" Foreground="{StaticResource Success}" Visibility="{Binding HasNoWarnings, Converter={StaticResource BoolToVisibility}}"/>
+                                <ItemsControl ItemsSource="{Binding HealthWarnings}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Background="{StaticResource MutedSurface}" CornerRadius="6" Padding="10" Margin="0,0,0,8">
+                                                <StackPanel>
+                                                    <TextBlock Text="{Binding Title}" FontWeight="SemiBold" Foreground="{StaticResource Warning}"/>
+                                                    <TextBlock Text="{Binding Detail}" Style="{StaticResource PathText}" TextWrapping="Wrap"/>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Grid.Column="1" Style="{StaticResource CardBorder}" Margin="8,0,0,0">
+                            <StackPanel>
+                                <TextBlock Text="{DynamicResource RecentActivity}" Style="{StaticResource SectionTitle}"/>
+                                <TextBlock Text="{DynamicResource NoLogsYet}" Foreground="{StaticResource TextSecondary}" Visibility="{Binding HasNoLogs, Converter={StaticResource BoolToVisibility}}"/>
+                                <ItemsControl ItemsSource="{Binding RecentActivity}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid Margin="0,0,0,8">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="70"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="70"/>
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Text="{Binding Time}" Foreground="{StaticResource TextSecondary}"/>
+                                                <TextBlock Grid.Column="1" Text="{Binding Job}" FontWeight="SemiBold"/>
+                                                <TextBlock Grid.Column="2" Text="{Binding Result}" HorizontalAlignment="Right"/>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                </StackPanel>
+            </ScrollViewer>
+
             <Grid Visibility="{Binding CurrentPage, Converter={x:Static local:PageConverter.Instance}, ConverterParameter=Jobs}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
@@ -109,19 +204,14 @@
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
 
-                <Border Grid.Row="0" Grid.ColumnSpan="2"
-                        Padding="28,22"
-                        BorderBrush="{StaticResource BorderBrush}"
-                        BorderThickness="0,0,0,1">
+                <Border Grid.Row="0" Grid.ColumnSpan="2" Padding="28,22" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                         <StackPanel>
-                            <TextBlock Text="{DynamicResource JobsTitle}"
-                                       FontSize="24"
-                                       FontWeight="Bold"/>
+                            <TextBlock Text="{DynamicResource JobsTitle}" FontSize="24" FontWeight="Bold"/>
                             <TextBlock Foreground="{StaticResource TextSecondary}" FontSize="12" Margin="0,4,0,0">
                                 <Run Text="{Binding JobRows.Count, Mode=OneWay}"/>
                                 <Run Text=" "/>
@@ -139,22 +229,11 @@
                 </Border>
 
                 <Grid Grid.Row="1" Grid.Column="0">
-                    <Border Style="{StaticResource CardBorder}"
-                            Margin="24"
-                            HorizontalAlignment="Stretch"
-                            VerticalAlignment="Top"
-                            Visibility="{Binding HasNoJobs, Converter={StaticResource BoolToVisibility}}">
+                    <Border Style="{StaticResource CardBorder}" Margin="24" HorizontalAlignment="Stretch" VerticalAlignment="Top" Visibility="{Binding HasNoJobs, Converter={StaticResource BoolToVisibility}}">
                         <StackPanel>
-                            <TextBlock Text="{DynamicResource EmptyJobsTitle}"
-                                       FontSize="18"
-                                       FontWeight="SemiBold"/>
-                            <TextBlock Text="{DynamicResource EmptyJobsBody}"
-                                       Foreground="{StaticResource TextSecondary}"
-                                       Margin="0,6,0,14"/>
-                            <Button Content="{DynamicResource NewJob}"
-                                    Style="{StaticResource PrimaryBtn}"
-                                    Command="{Binding NewJobCommand}"
-                                    HorizontalAlignment="Left"/>
+                            <TextBlock Text="{DynamicResource EmptyJobsTitle}" FontSize="18" FontWeight="SemiBold"/>
+                            <TextBlock Text="{DynamicResource EmptyJobsBody}" Foreground="{StaticResource TextSecondary}" Margin="0,6,0,14"/>
+                            <Button Content="{DynamicResource NewJob}" Style="{StaticResource PrimaryBtn}" Command="{Binding NewJobCommand}" HorizontalAlignment="Left"/>
                         </StackPanel>
                     </Border>
 
@@ -188,11 +267,7 @@
                                                 </StackPanel>
                                             </Grid>
 
-                                            <ProgressBar Grid.Row="1"
-                                                         Style="{StaticResource SlimProgress}"
-                                                         Value="{Binding Progress}"
-                                                         Maximum="100"
-                                                         Margin="0,14,0,12"/>
+                                            <ProgressBar Grid.Row="1" Style="{StaticResource SlimProgress}" Value="{Binding Progress}" Maximum="100" Margin="0,14,0,12"/>
 
                                             <Grid Grid.Row="2">
                                                 <Grid.ColumnDefinitions>
@@ -224,10 +299,11 @@
                                                     <TextBlock Text="{Binding LastActionDisplay}" Style="{StaticResource PathText}"/>
                                                 </StackPanel>
                                                 <WrapPanel Grid.Column="2" VerticalAlignment="Bottom">
-                                                    <Button Content="{DynamicResource Run}" Style="{StaticResource SuccessBtn}" Padding="10,6" Command="{Binding DataContext.ExecuteJobCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" Margin="0,0,6,0"/>
-                                                    <Button Content="{DynamicResource Pause}" Style="{StaticResource SmallGhostBtn}" Command="{Binding DataContext.PauseJobCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" Margin="0,0,6,0"/>
-                                                    <Button Content="{DynamicResource Resume}" Style="{StaticResource SmallGhostBtn}" Command="{Binding DataContext.ResumeJobCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" Margin="0,0,6,0"/>
-                                                    <Button Content="{DynamicResource Stop}" Style="{StaticResource DangerBtn}" Padding="10,6" Command="{Binding DataContext.StopJobCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" Margin="0,0,6,0"/>
+                                                    <Button Content="▶" ToolTip="{DynamicResource Run}" Style="{StaticResource SuccessBtn}" Padding="10,6" Command="{Binding DataContext.ExecuteJobCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" Margin="0,0,6,0"/>
+                                                    <Button Content="Ⅱ" ToolTip="{DynamicResource Pause}" Style="{StaticResource SmallGhostBtn}" Command="{Binding DataContext.PauseJobCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" Margin="0,0,6,0"/>
+                                                    <Button Content="↻" ToolTip="{DynamicResource Resume}" Style="{StaticResource SmallGhostBtn}" Command="{Binding DataContext.ResumeJobCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" Margin="0,0,6,0"/>
+                                                    <Button Content="■" ToolTip="{DynamicResource Stop}" Style="{StaticResource DangerBtn}" Padding="10,6" Command="{Binding DataContext.StopJobCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" Margin="0,0,6,0"/>
+                                                    <Button Content="{DynamicResource Preview}" Style="{StaticResource SmallGhostBtn}" Command="{Binding DataContext.PreviewJobCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" Margin="0,0,6,0"/>
                                                     <Button Content="{DynamicResource Edit}" Style="{StaticResource SmallGhostBtn}" Command="{Binding DataContext.SelectJobCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" Margin="0,0,6,0"/>
                                                     <Button Content="{DynamicResource Delete}" Style="{StaticResource DangerBtn}" Padding="10,6" Command="{Binding DataContext.DeleteJobCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
                                                 </WrapPanel>
@@ -240,15 +316,10 @@
                     </ScrollViewer>
                 </Grid>
 
-                <Border Grid.Row="1" Grid.Column="1"
-                        Background="{StaticResource BgCard}"
-                        BorderBrush="{StaticResource BorderBrush}"
-                        BorderThickness="1,0,0,0"
-                        Padding="22">
+                <Border Grid.Row="1" Grid.Column="1" Background="{StaticResource BgCard}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1,0,0,0" Padding="22">
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                         <StackPanel>
                             <TextBlock Text="{Binding FormTitle}" FontSize="20" FontWeight="Bold"/>
-
                             <TextBlock Text="{DynamicResource JobName}" Style="{StaticResource FieldLabel}"/>
                             <TextBox Text="{Binding FormName, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource ModernTextBox}"/>
                             <TextBlock Text="{Binding FormNameError}" Style="{StaticResource ErrorText}"/>
@@ -281,22 +352,124 @@
                                 <ComboBoxItem Content="{DynamicResource Differential}" Foreground="{StaticResource TextPrimary}"/>
                             </ComboBox>
 
-                            <Button Content="{DynamicResource SaveJob}"
-                                    Style="{StaticResource PrimaryBtn}"
-                                    Command="{Binding SaveJobCommand}"
-                                    Margin="0,18,0,8"/>
-                            <Button Content="{DynamicResource CancelEdit}"
-                                    Style="{StaticResource GhostBtn}"
-                                    Command="{Binding NewJobCommand}"/>
+                            <Button Content="{DynamicResource SaveJob}" Style="{StaticResource PrimaryBtn}" Command="{Binding SaveJobCommand}" Margin="0,18,0,8"/>
+                            <Button Content="{DynamicResource CancelEdit}" Style="{StaticResource GhostBtn}" Command="{Binding NewJobCommand}"/>
                         </StackPanel>
                     </ScrollViewer>
                 </Border>
             </Grid>
 
+            <ScrollViewer Visibility="{Binding CurrentPage, Converter={x:Static local:PageConverter.Instance}, ConverterParameter=Monitor}"
+                          VerticalScrollBarVisibility="Auto" Padding="28,24">
+                <StackPanel>
+                    <Grid Margin="0,0,0,18">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="{DynamicResource MonitorTitle}" FontSize="24" FontWeight="Bold"/>
+                            <TextBlock Text="{DynamicResource MonitorSubtitle}" Foreground="{StaticResource TextSecondary}" Margin="0,4,0,0"/>
+                        </StackPanel>
+                        <WrapPanel Grid.Column="1">
+                            <Button Content="{DynamicResource PauseAll}" Style="{StaticResource GhostBtn}" Command="{Binding PauseAllCommand}" Margin="0,0,8,0"/>
+                            <Button Content="{DynamicResource ResumeAll}" Style="{StaticResource GhostBtn}" Command="{Binding ResumeAllCommand}" Margin="0,0,8,0"/>
+                            <Button Content="{DynamicResource StopAll}" Style="{StaticResource DangerBtn}" Command="{Binding StopAllCommand}"/>
+                        </WrapPanel>
+                    </Grid>
+
+                    <UniformGrid Columns="4" Margin="0,0,0,16">
+                        <Border Style="{StaticResource CardBorder}" Margin="0,0,10,0"><TextBlock Text="{Binding PriorityIndicator}" TextWrapping="Wrap"/></Border>
+                        <Border Style="{StaticResource CardBorder}" Margin="0,0,10,0"><TextBlock Text="{Binding LargeFileIndicator}" TextWrapping="Wrap"/></Border>
+                        <Border Style="{StaticResource CardBorder}" Margin="0,0,10,0"><TextBlock Text="{Binding CryptoIndicator}" TextWrapping="Wrap"/></Border>
+                        <Border Style="{StaticResource CardBorder}"><TextBlock Text="{Binding BusinessPauseIndicator}" TextWrapping="Wrap"/></Border>
+                    </UniformGrid>
+
+                    <ItemsControl ItemsSource="{Binding JobRows}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Style="{StaticResource CardBorder}" Margin="0,0,0,12">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="240"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="170"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding Name}" FontSize="16" FontWeight="SemiBold"/>
+                                            <Border Style="{StaticResource StatusChip}" HorizontalAlignment="Left" Margin="0,8,0,0">
+                                                <TextBlock Text="{Binding Status}" Foreground="White" FontSize="11" FontWeight="SemiBold"/>
+                                            </Border>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Margin="12,0">
+                                            <TextBlock Text="{Binding CurrentFileName}" Style="{StaticResource PathText}"/>
+                                            <ProgressBar Style="{StaticResource SlimProgress}" Value="{Binding Progress}" Maximum="100" Margin="0,10,0,8"/>
+                                            <TextBlock Text="{Binding PauseReason}" Foreground="{StaticResource TextSecondary}" FontSize="12"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2">
+                                            <TextBlock Text="{Binding ProgressText}" FontSize="18" FontWeight="SemiBold"/>
+                                            <TextBlock Text="{Binding RemainingFiles, StringFormat={}{0} files left}" Foreground="{StaticResource TextSecondary}" Margin="0,6,0,0"/>
+                                            <TextBlock Text="{Binding RemainingSizeDisplay}" Foreground="{StaticResource TextSecondary}"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </ScrollViewer>
+
+            <ScrollViewer Visibility="{Binding CurrentPage, Converter={x:Static local:PageConverter.Instance}, ConverterParameter=Logs}"
+                          VerticalScrollBarVisibility="Auto" Padding="28,24">
+                <StackPanel>
+                    <TextBlock Text="{DynamicResource LogsTitle}" FontSize="24" FontWeight="Bold"/>
+                    <TextBlock Text="{DynamicResource LogsSubtitle}" Foreground="{StaticResource TextSecondary}" Margin="0,4,0,18"/>
+
+                    <Border Style="{StaticResource CardBorder}" Margin="0,0,0,14">
+                        <WrapPanel VerticalAlignment="Center">
+                            <StackPanel Margin="0,0,12,0">
+                                <TextBlock Text="{DynamicResource LogDate}" Style="{StaticResource FieldLabel}"/>
+                                <TextBox Text="{Binding LogDateText, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource ModernTextBox}" Width="140"/>
+                            </StackPanel>
+                            <StackPanel Margin="0,0,12,0">
+                                <TextBlock Text="{DynamicResource JobFilter}" Style="{StaticResource FieldLabel}"/>
+                                <TextBox Text="{Binding LogJobFilter, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource ModernTextBox}" Width="190"/>
+                            </StackPanel>
+                            <StackPanel Margin="0,0,12,0">
+                                <TextBlock Text="{DynamicResource StatusFilter}" Style="{StaticResource FieldLabel}"/>
+                                <ComboBox SelectedIndex="{Binding LogStatusFilterIndex}" Style="{StaticResource ModernComboBox}" Width="140">
+                                    <ComboBoxItem Content="{DynamicResource All}"/>
+                                    <ComboBoxItem Content="OK"/>
+                                    <ComboBoxItem Content="{DynamicResource Error}"/>
+                                </ComboBox>
+                            </StackPanel>
+                            <Button Content="{DynamicResource Refresh}" Style="{StaticResource PrimaryBtn}" Command="{Binding RefreshLogsCommand}" Margin="0,22,8,0"/>
+                            <Button Content="{DynamicResource OpenLog}" Style="{StaticResource GhostBtn}" Command="{Binding OpenLogFileCommand}" Margin="0,22,8,0"/>
+                            <Button Content="{DynamicResource ExportLog}" Style="{StaticResource GhostBtn}" Command="{Binding ExportLogFileCommand}" Margin="0,22,0,0"/>
+                        </WrapPanel>
+                    </Border>
+
+                    <TextBlock Text="{DynamicResource NoLogsYet}" Foreground="{StaticResource TextSecondary}" Visibility="{Binding HasNoLogs, Converter={StaticResource BoolToVisibility}}"/>
+                    <ListView ItemsSource="{Binding LogRows}" ItemContainerStyle="{StaticResource LogListItem}" Background="{StaticResource BgCard}" BorderBrush="{StaticResource BorderBrush}">
+                        <ListView.View>
+                            <GridView>
+                                <GridViewColumn Header="{DynamicResource Time}" DisplayMemberBinding="{Binding Time}" Width="80"/>
+                                <GridViewColumn Header="{DynamicResource Job}" DisplayMemberBinding="{Binding Job}" Width="150"/>
+                                <GridViewColumn Header="{DynamicResource Source}" DisplayMemberBinding="{Binding Source}" Width="270"/>
+                                <GridViewColumn Header="{DynamicResource Target}" DisplayMemberBinding="{Binding Target}" Width="270"/>
+                                <GridViewColumn Header="{DynamicResource Size}" DisplayMemberBinding="{Binding Size}" Width="90"/>
+                                <GridViewColumn Header="{DynamicResource TransferMs}" DisplayMemberBinding="{Binding TransferTime}" Width="110"/>
+                                <GridViewColumn Header="{DynamicResource EncryptionMs}" DisplayMemberBinding="{Binding EncryptionTime}" Width="120"/>
+                                <GridViewColumn Header="{DynamicResource Result}" DisplayMemberBinding="{Binding Result}" Width="80"/>
+                            </GridView>
+                        </ListView.View>
+                    </ListView>
+                </StackPanel>
+            </ScrollViewer>
+
             <ScrollViewer Visibility="{Binding CurrentPage, Converter={x:Static local:PageConverter.Instance}, ConverterParameter=Settings}"
-                          VerticalScrollBarVisibility="Auto"
-                          Padding="28,24">
-                <StackPanel MaxWidth="760">
+                          VerticalScrollBarVisibility="Auto" Padding="28,24">
+                <StackPanel MaxWidth="820">
                     <TextBlock Text="{DynamicResource SettingsTitle}" FontSize="24" FontWeight="Bold"/>
                     <TextBlock Text="{DynamicResource SettingsSubtitle}" Foreground="{StaticResource TextSecondary}" Margin="0,4,0,22"/>
 
@@ -319,7 +492,6 @@
                                 <ComboBoxItem Content="JSON" Foreground="{StaticResource TextPrimary}"/>
                                 <ComboBoxItem Content="XML" Foreground="{StaticResource TextPrimary}"/>
                             </ComboBox>
-
                             <TextBlock Text="{DynamicResource LogDirectory}" Style="{StaticResource FieldLabel}"/>
                             <Grid>
                                 <Grid.ColumnDefinitions>
@@ -329,19 +501,17 @@
                                 <TextBox Text="{Binding LogDirectoryText, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource ModernTextBox}" Margin="0,0,8,0"/>
                                 <Button Grid.Column="1" Content="{DynamicResource Browse}" Style="{StaticResource GhostBtn}" Command="{Binding BrowseLogDirectoryCommand}"/>
                             </Grid>
-
                             <TextBlock Text="{DynamicResource LogDestination}" Style="{StaticResource FieldLabel}"/>
                             <ComboBox SelectedIndex="{Binding LogDestinationModeIndex}" Style="{StaticResource ModernComboBox}" Width="260" HorizontalAlignment="Left">
                                 <ComboBoxItem Content="{DynamicResource LocalOnly}" Foreground="{StaticResource TextPrimary}"/>
                                 <ComboBoxItem Content="{DynamicResource CentralOnly}" Foreground="{StaticResource TextPrimary}"/>
                                 <ComboBoxItem Content="{DynamicResource LocalAndCentral}" Foreground="{StaticResource TextPrimary}"/>
                             </ComboBox>
-
                             <TextBlock Text="{DynamicResource CentralEndpoint}" Style="{StaticResource FieldLabel}"/>
                             <TextBox Text="{Binding CentralLogEndpoint, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource ModernTextBox}"/>
-
                             <TextBlock Text="{DynamicResource ClientId}" Style="{StaticResource FieldLabel}"/>
                             <TextBox Text="{Binding CentralClientId, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource ModernTextBox}" Width="280" HorizontalAlignment="Left"/>
+                            <Button Content="{DynamicResource TestCentralLogging}" Style="{StaticResource GhostBtn}" Command="{Binding TestCentralLoggingCommand}" HorizontalAlignment="Left" Margin="0,12,0,0"/>
                         </StackPanel>
                     </Border>
 
@@ -349,7 +519,27 @@
                         <StackPanel>
                             <TextBlock Text="{DynamicResource Scheduling}" Style="{StaticResource SectionTitle}"/>
                             <TextBlock Text="{DynamicResource PriorityExtensions}" Style="{StaticResource FieldLabel}"/>
-                            <TextBox Text="{Binding PriorityExtensionsText, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource ModernTextBox}" Width="360" HorizontalAlignment="Left"/>
+                            <WrapPanel>
+                                <ItemsControl ItemsSource="{Binding PriorityExtensionChips}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Background="{StaticResource MutedSurface}" CornerRadius="10" Padding="10,4" Margin="0,0,8,8">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="{Binding}"/>
+                                                    <Button Content="x" Style="{StaticResource SmallGhostBtn}" Padding="6,0" Margin="8,0,0,0" Command="{Binding DataContext.RemovePriorityExtensionCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </WrapPanel>
+                            <WrapPanel>
+                                <TextBox Text="{Binding NewPriorityExtension, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource ModernTextBox}" Width="160" Margin="0,0,8,0"/>
+                                <Button Content="{DynamicResource Add}" Style="{StaticResource GhostBtn}" Command="{Binding AddPriorityExtensionCommand}"/>
+                            </WrapPanel>
                             <TextBlock Text="{DynamicResource LargeThreshold}" Style="{StaticResource FieldLabel}"/>
                             <TextBox Text="{Binding LargeFileThresholdKb, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource ModernTextBox}" Width="180" HorizontalAlignment="Left"/>
                         </StackPanel>
@@ -359,7 +549,26 @@
                         <StackPanel>
                             <TextBlock Text="{DynamicResource Encryption}" Style="{StaticResource SectionTitle}"/>
                             <TextBlock Text="{DynamicResource EncryptedExtensions}" Style="{StaticResource FieldLabel}"/>
-                            <TextBox Text="{Binding EncryptedExtensionsText, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource ModernTextBox}" Width="360" HorizontalAlignment="Left"/>
+                            <ItemsControl ItemsSource="{Binding EncryptedExtensionChips}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Background="{StaticResource MutedSurface}" CornerRadius="10" Padding="10,4" Margin="0,0,8,8">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{Binding}"/>
+                                                <Button Content="x" Style="{StaticResource SmallGhostBtn}" Padding="6,0" Margin="8,0,0,0" Command="{Binding DataContext.RemoveEncryptedExtensionCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <WrapPanel>
+                                <TextBox Text="{Binding NewEncryptedExtension, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource ModernTextBox}" Width="160" Margin="0,0,8,0"/>
+                                <Button Content="{DynamicResource Add}" Style="{StaticResource GhostBtn}" Command="{Binding AddEncryptedExtensionCommand}" Margin="0,0,8,0"/>
+                                <Button Content="{DynamicResource TestCryptoSoft}" Style="{StaticResource GhostBtn}" Command="{Binding TestCryptoSoftCommand}"/>
+                            </WrapPanel>
                         </StackPanel>
                     </Border>
 
@@ -367,16 +576,18 @@
                         <StackPanel>
                             <TextBlock Text="{DynamicResource BusinessSoftware}" Style="{StaticResource SectionTitle}"/>
                             <TextBlock Text="{DynamicResource BusinessProcessName}" Style="{StaticResource FieldLabel}"/>
-                            <TextBox Text="{Binding BusinessSoftware, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource ModernTextBox}" Width="320" HorizontalAlignment="Left"/>
+                            <ComboBox Text="{Binding BusinessSoftware, UpdateSourceTrigger=PropertyChanged}"
+                                      ItemsSource="{Binding RunningProcessNames}"
+                                      IsEditable="True"
+                                      Style="{StaticResource ModernComboBox}"
+                                      Width="320"
+                                      HorizontalAlignment="Left"/>
+                            <Button Content="{DynamicResource RefreshProcesses}" Style="{StaticResource GhostBtn}" Command="{Binding RefreshProcessesCommand}" HorizontalAlignment="Left" Margin="0,12,0,0"/>
                         </StackPanel>
                     </Border>
 
                     <TextBlock Text="{Binding SettingsError}" Style="{StaticResource ErrorText}" Margin="0,0,0,8"/>
-                    <Button Content="{DynamicResource SaveSettings}"
-                            Style="{StaticResource PrimaryBtn}"
-                            Command="{Binding SaveSettingsCommand}"
-                            HorizontalAlignment="Left"
-                            Padding="20,10"/>
+                    <Button Content="{DynamicResource SaveSettings}" Style="{StaticResource PrimaryBtn}" Command="{Binding SaveSettingsCommand}" HorizontalAlignment="Left" Padding="20,10"/>
                 </StackPanel>
             </ScrollViewer>
         </Grid>

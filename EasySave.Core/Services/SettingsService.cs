@@ -133,5 +133,9 @@ namespace EasySave.Core.Services
         /// <summary>Process name of the business software that blocks backup execution.</summary>
         [JsonPropertyName("BusinessSoftwareName")]
         public string BusinessSoftwareName { get; set; } = string.Empty;
+
+        /// <summary>Preferred WPF language ("en" or "fr"). Console localization remains separate.</summary>
+        [JsonPropertyName("UiLanguage")]
+        public string UiLanguage { get; set; } = "en";
     }
 }
