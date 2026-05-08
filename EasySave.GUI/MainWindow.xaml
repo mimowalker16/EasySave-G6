@@ -559,7 +559,7 @@
                                         <Button Content="{DynamicResource Add}" Style="{StaticResource GhostBtn}" Command="{Binding AddPriorityExtensionCommand}"/>
                                     </WrapPanel>
                                     <TextBlock Text="{DynamicResource LargeThreshold}" Style="{StaticResource FieldLabel}"/>
-                                    <TextBox Text="{Binding LargeFileThresholdKb, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource ModernTextBox}" Width="180" HorizontalAlignment="Left"/>
+                                    <TextBox Text="{Binding LargeFileThresholdText, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource ModernTextBox}" Width="180" HorizontalAlignment="Left"/>
                                 </StackPanel>
                             </Border>
                         </TabItem>

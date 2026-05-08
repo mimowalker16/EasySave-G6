@@ -162,6 +162,7 @@ namespace EasySave.GUI.ViewModels
         private string _centralClientId = string.Empty;
         private string _priorityExtensionsText = string.Empty;
         private long _largeFileThresholdKb;
+        private string _largeFileThresholdText = "0";
         private string _businessSoftware = string.Empty;
         private string _encryptedExtensionsText = string.Empty;
 
@@ -342,7 +343,23 @@ namespace EasySave.GUI.ViewModels
         public long LargeFileThresholdKb
         {
             get => _largeFileThresholdKb;
-            set { _largeFileThresholdKb = value; OnPropertyChanged(); OnPropertyChanged(nameof(LargeFileIndicator)); }
+            private set
+            {
+                _largeFileThresholdKb = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(LargeFileIndicator));
+            }
+        }
+
+        public string LargeFileThresholdText
+        {
+            get => _largeFileThresholdText;
+            set
+            {
+                _largeFileThresholdText = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(LargeFileIndicator));
+            }
         }
 
         public string BusinessSoftware
@@ -432,7 +449,7 @@ namespace EasySave.GUI.ViewModels
             CentralLogEndpoint = core.Settings.CentralLogEndpoint;
             CentralClientId = core.Settings.CentralClientId;
             PriorityExtensionsText = string.Join(",", core.Settings.PriorityExtensions);
-            LargeFileThresholdKb = core.Settings.LargeFileThresholdKb;
+            SetLargeFileThreshold(core.Settings.LargeFileThresholdKb);
             BusinessSoftware = core.Settings.BusinessSoftwareName;
             EncryptedExtensionsText = string.Join(",", core.Settings.EncryptedExtensions);
             ResetChips(PriorityExtensionChips, core.Settings.PriorityExtensions);
@@ -686,9 +703,8 @@ namespace EasySave.GUI.ViewModels
 
         private void SaveSettings()
         {
-            if (LargeFileThresholdKb < 0)
+            if (!TryReadLargeFileThreshold(out long thresholdKb))
             {
-                SettingsError = "Large file threshold must be zero or greater.";
                 return;
             }
 
@@ -706,13 +722,14 @@ namespace EasySave.GUI.ViewModels
                 CentralLogEndpoint = CentralLogEndpoint.Trim(),
                 CentralClientId = CentralClientId.Trim(),
                 PriorityExtensions = PriorityExtensionChips.ToList(),
-                LargeFileThresholdKb = LargeFileThresholdKb,
+                LargeFileThresholdKb = thresholdKb,
                 EncryptedExtensions = EncryptedExtensionChips.ToList(),
                 BusinessSoftwareName = BusinessSoftware.Trim(),
                 UiLanguage = LanguageIndex == 1 ? "fr" : "en"
             };
 
             _core.UpdateSettings(settings);
+            SetLargeFileThreshold(thresholdKb);
             PriorityExtensionsText = string.Join(",", PriorityExtensionChips);
             EncryptedExtensionsText = string.Join(",", EncryptedExtensionChips);
             SettingsError = string.Empty;
@@ -817,6 +834,32 @@ namespace EasySave.GUI.ViewModels
             FormTargetError = string.Empty;
             OnPropertyChanged(nameof(CanSaveJob));
             CommandManager.InvalidateRequerySuggested();
+        }
+
+        private bool TryReadLargeFileThreshold(out long thresholdKb)
+        {
+            string raw = LargeFileThresholdText.Trim();
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                thresholdKb = 0;
+                SettingsError = "Large file threshold is required. Use 0 to disable it.";
+                return false;
+            }
+
+            if (!long.TryParse(raw, out thresholdKb) || thresholdKb < 0)
+            {
+                SettingsError = "Large file threshold must be a whole number greater than or equal to zero.";
+                return false;
+            }
+
+            return true;
+        }
+
+        private void SetLargeFileThreshold(long thresholdKb)
+        {
+            LargeFileThresholdKb = thresholdKb;
+            _largeFileThresholdText = thresholdKb.ToString();
+            OnPropertyChanged(nameof(LargeFileThresholdText));
         }
 
         private void RefreshDashboard()
@@ -1031,9 +1074,49 @@ namespace EasySave.GUI.ViewModels
 
             if (dialog.ShowDialog() == Forms.DialogResult.OK)
             {
-                File.Copy(path, dialog.FileName, overwrite: true);
-                StatusMessage = $"Log exported to {dialog.FileName}.";
+                try
+                {
+                    string sourcePath = Path.GetFullPath(path);
+                    string destinationPath = Path.GetFullPath(dialog.FileName);
+                    if (string.Equals(sourcePath, destinationPath, StringComparison.OrdinalIgnoreCase))
+                    {
+                        StatusMessage = "Export skipped: source and destination are the same file.";
+                        return;
+                    }
+
+                    CopyLogFile(sourcePath, destinationPath);
+                    StatusMessage = $"Log exported to {dialog.FileName}.";
+                }
+                catch (IOException ex)
+                {
+                    StatusMessage = $"Export failed: {ex.Message}";
+                }
+                catch (UnauthorizedAccessException)
+                {
+                    StatusMessage = "Export failed: EasySave does not have permission to write to that location.";
+                }
             }
+        }
+
+        private static void CopyLogFile(string sourcePath, string destinationPath)
+        {
+            string? destinationDirectory = Path.GetDirectoryName(destinationPath);
+            if (!string.IsNullOrWhiteSpace(destinationDirectory))
+                Directory.CreateDirectory(destinationDirectory);
+
+            using var source = new FileStream(
+                sourcePath,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete);
+
+            using var destination = new FileStream(
+                destinationPath,
+                FileMode.Create,
+                FileAccess.Write,
+                FileShare.Read);
+
+            source.CopyTo(destination);
         }
 
         private string GetCurrentLogFilePath()
