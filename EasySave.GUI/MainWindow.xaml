@@ -1,137 +1,116 @@
 <Window x:Class="EasySave.GUI.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:vm="clr-namespace:EasySave.GUI.ViewModels"
+        xmlns:local="clr-namespace:EasySave.GUI"
         Title="EasySave v3.0"
-        Width="1100" Height="720"
-        MinWidth="900" MinHeight="600"
+        Width="1280" Height="760"
+        MinWidth="1040" MinHeight="640"
         WindowStartupLocation="CenterScreen"
         Background="{StaticResource BgDeep}"
         Foreground="{StaticResource TextPrimary}"
         FontFamily="Segoe UI">
 
     <Window.Resources>
-        <!-- Nav button style -->
-        <Style x:Key="NavBtn" TargetType="Button">
-            <Setter Property="Background"      Value="Transparent"/>
-            <Setter Property="Foreground"      Value="{StaticResource TextSecondary}"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding"         Value="18,12"/>
-            <Setter Property="FontSize"        Value="13"/>
+        <Style x:Key="NavBtn" TargetType="Button" BasedOn="{StaticResource GhostBtn}">
             <Setter Property="HorizontalContentAlignment" Value="Left"/>
-            <Setter Property="Cursor"          Value="Hand"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="border" Background="{TemplateBinding Background}"
-                                CornerRadius="8" Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Left" VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="border" Property="Background" Value="{StaticResource BgHover}"/>
-                                <Setter Property="Foreground" Value="White"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="16,11"/>
+            <Setter Property="FontSize" Value="13"/>
         </Style>
 
-        <!-- Progress bar style -->
-        <Style x:Key="SlimProgress" TargetType="ProgressBar">
-            <Setter Property="Height" Value="6"/>
-            <Setter Property="Background" Value="{StaticResource BgDeep}"/>
-            <Setter Property="Foreground" Value="{StaticResource Accent}"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="ProgressBar">
-                        <Border Background="{TemplateBinding Background}" CornerRadius="3">
-                            <Border x:Name="PART_Indicator"
-                                    HorizontalAlignment="Left"
-                                    Background="{TemplateBinding Foreground}"
-                                    CornerRadius="3"/>
-                        </Border>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
+        <Style x:Key="PathText" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource TextSecondary}"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+        </Style>
+
+        <Style x:Key="MetaLabel" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource TextSecondary}"/>
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="Margin" Value="0,0,0,2"/>
+        </Style>
+
+        <Style x:Key="StatusChip" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource ChipIdle}"/>
+            <Setter Property="CornerRadius" Value="10"/>
+            <Setter Property="Padding" Value="8,3"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Status}" Value="Running">
+                    <Setter Property="Background" Value="{StaticResource ChipRunning}"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Status}" Value="Paused">
+                    <Setter Property="Background" Value="{StaticResource ChipPaused}"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Status}" Value="Canceled">
+                    <Setter Property="Background" Value="{StaticResource ChipError}"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Status}" Value="Stopping">
+                    <Setter Property="Background" Value="{StaticResource ChipError}"/>
+                </DataTrigger>
+            </Style.Triggers>
         </Style>
     </Window.Resources>
 
     <Grid>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="210"/>
+            <ColumnDefinition Width="220"/>
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
 
-        <!-- ═══════════════════════════════════════════════════════════ -->
-        <!-- SIDEBAR                                                      -->
-        <!-- ═══════════════════════════════════════════════════════════ -->
         <Border Grid.Column="0"
                 Background="{StaticResource BgCard}"
                 BorderBrush="{StaticResource BorderBrush}"
                 BorderThickness="0,0,1,0">
             <DockPanel>
-                <!-- Logo -->
-                <StackPanel DockPanel.Dock="Top" Margin="20,28,20,24">
-                    <TextBlock Text="💾 EasySave"
-                               FontSize="20" FontWeight="Bold"
+                <StackPanel DockPanel.Dock="Top" Margin="20,26,20,18">
+                    <TextBlock Text="{DynamicResource AppTitle}"
+                               FontSize="22"
+                               FontWeight="Bold"
                                Foreground="{StaticResource TextPrimary}"/>
-                    <TextBlock Text="v3.0 — by ProSoft"
+                    <TextBlock Text="{DynamicResource AppSubtitle}"
                                FontSize="11"
                                Foreground="{StaticResource TextSecondary}"
-                               Margin="0,2,0,0"/>
+                               Margin="0,3,0,0"/>
                 </StackPanel>
 
-                <Separator DockPanel.Dock="Top"
-                           Background="{StaticResource BorderBrush}"
-                           Margin="16,0,16,12"/>
-
-                <!-- Nav items -->
-                <StackPanel DockPanel.Dock="Top" Margin="10,0">
+                <StackPanel DockPanel.Dock="Top" Margin="12,0">
                     <Button Style="{StaticResource NavBtn}"
-                            Content="📋  Backup Jobs"
+                            Content="{DynamicResource NavJobs}"
                             Command="{Binding NavigateCommand}"
                             CommandParameter="Jobs"/>
                     <Button Style="{StaticResource NavBtn}"
-                            Content="⚙️  Settings"
+                            Content="{DynamicResource NavSettings}"
                             Command="{Binding NavigateCommand}"
                             CommandParameter="Settings"
-                            Margin="0,4,0,0"/>
+                            Margin="0,6,0,0"/>
                 </StackPanel>
 
-                <!-- Status bar at bottom -->
                 <Border DockPanel.Dock="Bottom"
-                        Margin="12,12,12,16"
-                        Background="{StaticResource BgDeep}"
+                        Margin="14,14,14,18"
+                        Background="{StaticResource MutedSurface}"
                         CornerRadius="8"
-                        Padding="12,8">
+                        Padding="12">
                     <TextBlock Text="{Binding StatusMessage}"
                                Foreground="{StaticResource TextSecondary}"
-                               FontSize="11"
+                               FontSize="12"
                                TextWrapping="Wrap"/>
                 </Border>
             </DockPanel>
         </Border>
 
-        <!-- ═══════════════════════════════════════════════════════════ -->
-        <!-- MAIN CONTENT                                                 -->
-        <!-- ═══════════════════════════════════════════════════════════ -->
         <Grid Grid.Column="1">
-
-            <!-- ── JOBS PAGE ────────────────────────────────────────── -->
-            <Grid Visibility="{Binding CurrentPage, Converter={x:Static local:PageConverter.Instance}, ConverterParameter=Jobs,
-                               FallbackValue=Visible}"
-                  xmlns:local="clr-namespace:EasySave.GUI">
+            <Grid Visibility="{Binding CurrentPage, Converter={x:Static local:PageConverter.Instance}, ConverterParameter=Jobs}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="340"/>
+                </Grid.ColumnDefinitions>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
-                    <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
-                <!-- Header -->
-                <Border Grid.Row="0" Padding="28,22,28,18"
+                <Border Grid.Row="0" Grid.ColumnSpan="2"
+                        Padding="28,22"
                         BorderBrush="{StaticResource BorderBrush}"
                         BorderThickness="0,0,0,1">
                     <Grid>
@@ -139,465 +118,264 @@
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
-                        <StackPanel Grid.Column="0">
-                            <TextBlock Text="Backup Jobs"
-                                       FontSize="22" FontWeight="Bold"
-                                       Foreground="{StaticResource TextPrimary}"/>
-                            <TextBlock FontSize="12"
-                                       Foreground="{StaticResource TextSecondary}"
-                                       Margin="0,2,0,0">
+                        <StackPanel>
+                            <TextBlock Text="{DynamicResource JobsTitle}"
+                                       FontSize="24"
+                                       FontWeight="Bold"/>
+                            <TextBlock Foreground="{StaticResource TextSecondary}" FontSize="12" Margin="0,4,0,0">
                                 <Run Text="{Binding JobRows.Count, Mode=OneWay}"/>
-                                <Run Text="job(s) configured — parallel in v3.0"/>
+                                <Run Text=" "/>
+                                <Run Text="{DynamicResource JobsSubtitleSuffix}"/>
                             </TextBlock>
                         </StackPanel>
-                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                            <Button Content="▶  Run All"
-                                    Style="{StaticResource SuccessBtn}"
-                                    Command="{Binding ExecuteAllCommand}"
-                                    Margin="0,0,8,0"/>
-                            <Button Content="⏸  Pause All"
-                                    Style="{StaticResource GhostBtn}"
-                                    Command="{Binding PauseAllCommand}"
-                                    Margin="0,0,8,0"/>
-                            <Button Content="▶  Resume All"
-                                    Style="{StaticResource GhostBtn}"
-                                    Command="{Binding ResumeAllCommand}"
-                                    Margin="0,0,8,0"/>
-                            <Button Content="■  Stop All"
-                                    Style="{StaticResource DangerBtn}"
-                                    Command="{Binding StopAllCommand}"
-                                    Margin="0,0,8,0"/>
-                            <Button Content="＋  New Job"
-                                    Style="{StaticResource PrimaryBtn}"
-                                    Command="{Binding NewJobCommand}"/>
-                        </StackPanel>
+                        <WrapPanel Grid.Column="1" VerticalAlignment="Center">
+                            <Button Content="{DynamicResource RunAll}" Style="{StaticResource SuccessBtn}" Command="{Binding ExecuteAllCommand}" Margin="0,0,8,0"/>
+                            <Button Content="{DynamicResource PauseAll}" Style="{StaticResource GhostBtn}" Command="{Binding PauseAllCommand}" Margin="0,0,8,0"/>
+                            <Button Content="{DynamicResource ResumeAll}" Style="{StaticResource GhostBtn}" Command="{Binding ResumeAllCommand}" Margin="0,0,8,0"/>
+                            <Button Content="{DynamicResource StopAll}" Style="{StaticResource DangerBtn}" Command="{Binding StopAllCommand}" Margin="0,0,8,0"/>
+                            <Button Content="{DynamicResource NewJob}" Style="{StaticResource PrimaryBtn}" Command="{Binding NewJobCommand}"/>
+                        </WrapPanel>
                     </Grid>
                 </Border>
 
-                <!-- Job list -->
-                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="20,16">
-                    <ItemsControl ItemsSource="{Binding JobRows}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <Border Margin="0,0,0,10"
-                                        Background="{StaticResource BgCard}"
-                                        BorderBrush="{StaticResource BorderBrush}"
-                                        BorderThickness="1"
-                                        CornerRadius="10"
-                                        Padding="18,14">
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                        </Grid.ColumnDefinitions>
+                <Grid Grid.Row="1" Grid.Column="0">
+                    <Border Style="{StaticResource CardBorder}"
+                            Margin="24"
+                            HorizontalAlignment="Stretch"
+                            VerticalAlignment="Top"
+                            Visibility="{Binding HasNoJobs, Converter={StaticResource BoolToVisibility}}">
+                        <StackPanel>
+                            <TextBlock Text="{DynamicResource EmptyJobsTitle}"
+                                       FontSize="18"
+                                       FontWeight="SemiBold"/>
+                            <TextBlock Text="{DynamicResource EmptyJobsBody}"
+                                       Foreground="{StaticResource TextSecondary}"
+                                       Margin="0,6,0,14"/>
+                            <Button Content="{DynamicResource NewJob}"
+                                    Style="{StaticResource PrimaryBtn}"
+                                    Command="{Binding NewJobCommand}"
+                                    HorizontalAlignment="Left"/>
+                        </StackPanel>
+                    </Border>
 
-                                        <StackPanel Grid.Column="0">
-                                            <StackPanel Orientation="Horizontal">
-                                                <TextBlock Text="{Binding Name}"
-                                                           FontSize="15" FontWeight="SemiBold"
-                                                           Foreground="{StaticResource TextPrimary}"/>
-                                                <Border Margin="10,0,0,0"
-                                                        Background="{StaticResource Accent}"
-                                                        CornerRadius="4"
-                                                        Padding="6,2">
-                                                    <TextBlock Text="{Binding Type}"
-                                                               FontSize="10"
-                                                               Foreground="White"/>
-                                                </Border>
-                                            </StackPanel>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="24,18">
+                        <ItemsControl ItemsSource="{Binding JobRows}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Style="{StaticResource CardBorder}" Margin="0,0,0,12">
+                                        <Grid>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                            </Grid.RowDefinitions>
 
-                                            <TextBlock Margin="0,4,0,0"
-                                                       FontSize="11"
-                                                       Foreground="{StaticResource TextSecondary}">
-                                                <Run Text="📁"/>
-                                                <Run Text="{Binding Source}"/>
-                                                <Run Text=" → "/>
-                                                <Run Text="{Binding Target}"/>
-                                            </TextBlock>
+                                            <Grid Grid.Row="0">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel>
+                                                    <TextBlock Text="{Binding Name}" FontSize="17" FontWeight="SemiBold"/>
+                                                    <TextBlock Text="{Binding Type}" Foreground="{StaticResource TextSecondary}" FontSize="12" Margin="0,3,0,0"/>
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top">
+                                                    <Border Style="{StaticResource StatusChip}" Margin="0,0,10,0">
+                                                        <TextBlock Text="{Binding Status}" Foreground="White" FontSize="11" FontWeight="SemiBold"/>
+                                                    </Border>
+                                                    <TextBlock Text="{Binding ProgressText}" FontSize="14" FontWeight="SemiBold"/>
+                                                </StackPanel>
+                                            </Grid>
 
-                                            <ProgressBar Style="{StaticResource SlimProgress}"
-                                                         Margin="0,8,0,0"
+                                            <ProgressBar Grid.Row="1"
+                                                         Style="{StaticResource SlimProgress}"
                                                          Value="{Binding Progress}"
-                                                         Maximum="100"/>
+                                                         Maximum="100"
+                                                         Margin="0,14,0,12"/>
 
-                                            <TextBlock Text="{Binding Status}"
-                                                       FontSize="11"
-                                                       Foreground="{StaticResource TextSecondary}"
-                                                       Margin="0,4,0,0"/>
-                                        </StackPanel>
+                                            <Grid Grid.Row="2">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel Grid.Column="0" Margin="0,0,12,0">
+                                                    <TextBlock Text="{DynamicResource Source}" Style="{StaticResource MetaLabel}"/>
+                                                    <TextBlock Text="{Binding Source}" Style="{StaticResource PathText}"/>
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="1">
+                                                    <TextBlock Text="{DynamicResource Target}" Style="{StaticResource MetaLabel}"/>
+                                                    <TextBlock Text="{Binding Target}" Style="{StaticResource PathText}"/>
+                                                </StackPanel>
+                                            </Grid>
 
-                                        <!-- Action buttons -->
-                                        <StackPanel Grid.Column="1"
-                                                    Orientation="Horizontal"
-                                                    VerticalAlignment="Center"
-                                                    Margin="12,0,0,0">
-                                            <Button Content="▶"
-                                                    Style="{StaticResource SuccessBtn}"
-                                                    Padding="10,6"
-                                                    Margin="0,0,6,0"
-                                                    ToolTip="Execute this job"
-                                                    Command="{Binding DataContext.ExecuteJobCommand,
-                                                              RelativeSource={RelativeSource AncestorType=Window}}"
-                                                    CommandParameter="{Binding}">
-                                                <Button.Triggers>
-                                                    <EventTrigger RoutedEvent="Button.Click">
-                                                        <BeginStoryboard>
-                                                            <Storyboard>
-                                                                <ObjectAnimationUsingKeyFrames
-                                                                    Storyboard.TargetProperty="(Button.IsEnabled)">
-                                                                    <DiscreteObjectKeyFrame KeyTime="0" Value="False"/>
-                                                                    <DiscreteObjectKeyFrame KeyTime="0:0:0.05" Value="True"/>
-                                                                </ObjectAnimationUsingKeyFrames>
-                                                            </Storyboard>
-                                                        </BeginStoryboard>
-                                                    </EventTrigger>
-                                                </Button.Triggers>
-                                            </Button>
-                                            <Button Content="✏"
-                                                    Style="{StaticResource GhostBtn}"
-                                                    Padding="10,6"
-                                                    Margin="0,0,6,0"
-                                                    ToolTip="Edit this job"
-                                                    Command="{Binding DataContext.SelectJobCommand,
-                                                              RelativeSource={RelativeSource AncestorType=Window}}"
-                                                    CommandParameter="{Binding}"/>
-                                            <Button Content="🗑"
-                                                    Style="{StaticResource DangerBtn}"
-                                                    Padding="10,6"
-                                                    Margin="0,0,6,0"
-                                                    ToolTip="Delete this job"
-                                                    Command="{Binding DataContext.DeleteJobCommand,
-                                                              RelativeSource={RelativeSource AncestorType=Window}}"
-                                                    CommandParameter="{Binding}"/>
-                                            <Button Content="⏸"
-                                                    Style="{StaticResource GhostBtn}"
-                                                    Padding="10,6"
-                                                    Margin="0,0,6,0"
-                                                    ToolTip="Pause this job"
-                                                    Command="{Binding DataContext.PauseJobCommand,
-                                                              RelativeSource={RelativeSource AncestorType=Window}}"
-                                                    CommandParameter="{Binding}"/>
-                                            <Button Content="▶"
-                                                    Style="{StaticResource GhostBtn}"
-                                                    Padding="10,6"
-                                                    Margin="0,0,6,0"
-                                                    ToolTip="Resume this job"
-                                                    Command="{Binding DataContext.ResumeJobCommand,
-                                                              RelativeSource={RelativeSource AncestorType=Window}}"
-                                                    CommandParameter="{Binding}"/>
-                                            <Button Content="■"
-                                                    Style="{StaticResource DangerBtn}"
-                                                    Padding="10,6"
-                                                    ToolTip="Stop this job"
-                                                    Command="{Binding DataContext.StopJobCommand,
-                                                              RelativeSource={RelativeSource AncestorType=Window}}"
-                                                    CommandParameter="{Binding}"/>
-                                        </StackPanel>
-                                    </Grid>
-                                </Border>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </ScrollViewer>
+                                            <Grid Grid.Row="3" Margin="0,14,0,0">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="130"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel>
+                                                    <TextBlock Text="{DynamicResource CurrentFile}" Style="{StaticResource MetaLabel}"/>
+                                                    <TextBlock Text="{Binding CurrentFileName}" Style="{StaticResource PathText}"/>
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="1">
+                                                    <TextBlock Text="{DynamicResource LastAction}" Style="{StaticResource MetaLabel}"/>
+                                                    <TextBlock Text="{Binding LastActionDisplay}" Style="{StaticResource PathText}"/>
+                                                </StackPanel>
+                                                <WrapPanel Grid.Column="2" VerticalAlignment="Bottom">
+                                                    <Button Content="{DynamicResource Run}" Style="{StaticResource SuccessBtn}" Padding="10,6" Command="{Binding DataContext.ExecuteJobCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" Margin="0,0,6,0"/>
+                                                    <Button Content="{DynamicResource Pause}" Style="{StaticResource SmallGhostBtn}" Command="{Binding DataContext.PauseJobCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" Margin="0,0,6,0"/>
+                                                    <Button Content="{DynamicResource Resume}" Style="{StaticResource SmallGhostBtn}" Command="{Binding DataContext.ResumeJobCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" Margin="0,0,6,0"/>
+                                                    <Button Content="{DynamicResource Stop}" Style="{StaticResource DangerBtn}" Padding="10,6" Command="{Binding DataContext.StopJobCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" Margin="0,0,6,0"/>
+                                                    <Button Content="{DynamicResource Edit}" Style="{StaticResource SmallGhostBtn}" Command="{Binding DataContext.SelectJobCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" Margin="0,0,6,0"/>
+                                                    <Button Content="{DynamicResource Delete}" Style="{StaticResource DangerBtn}" Padding="10,6" Command="{Binding DataContext.DeleteJobCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
+                                                </WrapPanel>
+                                            </Grid>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </Grid>
 
-                <!-- Create / Edit form -->
-                <Border Grid.Row="2"
+                <Border Grid.Row="1" Grid.Column="1"
                         Background="{StaticResource BgCard}"
                         BorderBrush="{StaticResource BorderBrush}"
-                        BorderThickness="0,1,0,0"
-                        Padding="24,18">
-                    <StackPanel>
-                        <TextBlock Text="{Binding FormTitle}"
-                                   FontSize="14" FontWeight="SemiBold"
-                                   Foreground="{StaticResource TextPrimary}"
-                                   Margin="0,0,0,12"/>
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="120"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-                            <TextBox Grid.Column="0" Margin="0,0,8,0"
-                                     Style="{StaticResource ModernTextBox}"
-                                     Text="{Binding FormName, UpdateSourceTrigger=PropertyChanged}"
-                                     x:Name="NameBox">
-                                <TextBox.Tag>Job name</TextBox.Tag>
-                            </TextBox>
-                            <TextBox Grid.Column="1" Margin="0,0,8,0"
-                                     Style="{StaticResource ModernTextBox}"
-                                     Text="{Binding FormSource, UpdateSourceTrigger=PropertyChanged}"/>
-                            <TextBox Grid.Column="2" Margin="0,0,8,0"
-                                     Style="{StaticResource ModernTextBox}"
-                                     Text="{Binding FormTarget, UpdateSourceTrigger=PropertyChanged}"/>
-                            <ComboBox Grid.Column="3" Margin="0,0,8,0"
-                                      Style="{StaticResource ModernComboBox}"
-                                      SelectedIndex="{Binding FormTypeIndex}">
-                                <ComboBoxItem Content="Full" Foreground="{StaticResource TextPrimary}"/>
-                                <ComboBoxItem Content="Differential" Foreground="{StaticResource TextPrimary}"/>
+                        BorderThickness="1,0,0,0"
+                        Padding="22">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel>
+                            <TextBlock Text="{Binding FormTitle}" FontSize="20" FontWeight="Bold"/>
+
+                            <TextBlock Text="{DynamicResource JobName}" Style="{StaticResource FieldLabel}"/>
+                            <TextBox Text="{Binding FormName, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource ModernTextBox}"/>
+                            <TextBlock Text="{Binding FormNameError}" Style="{StaticResource ErrorText}"/>
+
+                            <TextBlock Text="{DynamicResource SourceFolder}" Style="{StaticResource FieldLabel}"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBox Text="{Binding FormSource, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource ModernTextBox}" Margin="0,0,8,0"/>
+                                <Button Grid.Column="1" Content="{DynamicResource Browse}" Style="{StaticResource GhostBtn}" Command="{Binding BrowseSourceCommand}"/>
+                            </Grid>
+                            <TextBlock Text="{Binding FormSourceError}" Style="{StaticResource ErrorText}"/>
+
+                            <TextBlock Text="{DynamicResource TargetFolder}" Style="{StaticResource FieldLabel}"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBox Text="{Binding FormTarget, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource ModernTextBox}" Margin="0,0,8,0"/>
+                                <Button Grid.Column="1" Content="{DynamicResource Browse}" Style="{StaticResource GhostBtn}" Command="{Binding BrowseTargetCommand}"/>
+                            </Grid>
+                            <TextBlock Text="{Binding FormTargetError}" Style="{StaticResource ErrorText}"/>
+
+                            <TextBlock Text="{DynamicResource BackupType}" Style="{StaticResource FieldLabel}"/>
+                            <ComboBox SelectedIndex="{Binding FormTypeIndex}" Style="{StaticResource ModernComboBox}">
+                                <ComboBoxItem Content="{DynamicResource Full}" Foreground="{StaticResource TextPrimary}"/>
+                                <ComboBoxItem Content="{DynamicResource Differential}" Foreground="{StaticResource TextPrimary}"/>
                             </ComboBox>
-                            <Button Grid.Column="4"
-                                    Content="Save"
+
+                            <Button Content="{DynamicResource SaveJob}"
                                     Style="{StaticResource PrimaryBtn}"
-                                    Command="{Binding SaveJobCommand}"/>
-                        </Grid>
-                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                            <TextBlock Text="Name" Foreground="{StaticResource TextSecondary}"
-                                       FontSize="10" Width="200" Margin="0,0,8,0"/>
-                            <TextBlock Text="Source directory" Foreground="{StaticResource TextSecondary}"
-                                       FontSize="10" Width="200" Margin="0,0,8,0"/>
-                            <TextBlock Text="Target directory" Foreground="{StaticResource TextSecondary}"
-                                       FontSize="10" Width="200" Margin="0,0,8,0"/>
-                            <TextBlock Text="Type" Foreground="{StaticResource TextSecondary}"
-                                       FontSize="10" Width="120"/>
+                                    Command="{Binding SaveJobCommand}"
+                                    Margin="0,18,0,8"/>
+                            <Button Content="{DynamicResource CancelEdit}"
+                                    Style="{StaticResource GhostBtn}"
+                                    Command="{Binding NewJobCommand}"/>
                         </StackPanel>
-                    </StackPanel>
+                    </ScrollViewer>
                 </Border>
             </Grid>
 
-            <!-- ── SETTINGS PAGE ──────────────────────────────────── -->
-            <ScrollViewer Visibility="{Binding CurrentPage,
-                              Converter={x:Static local:PageConverter.Instance},
-                              ConverterParameter=Settings,
-                              FallbackValue=Collapsed}"
-                          xmlns:local="clr-namespace:EasySave.GUI"
+            <ScrollViewer Visibility="{Binding CurrentPage, Converter={x:Static local:PageConverter.Instance}, ConverterParameter=Settings}"
                           VerticalScrollBarVisibility="Auto"
                           Padding="28,24">
-                <StackPanel MaxWidth="560" HorizontalAlignment="Left">
-                    <TextBlock Text="Settings"
-                               FontSize="22" FontWeight="Bold"
-                               Foreground="{StaticResource TextPrimary}"
-                               Margin="0,0,0,4"/>
-                    <TextBlock Text="Global configuration for EasySave v3.0"
-                               FontSize="12"
-                               Foreground="{StaticResource TextSecondary}"
-                               Margin="0,0,0,28"/>
+                <StackPanel MaxWidth="760">
+                    <TextBlock Text="{DynamicResource SettingsTitle}" FontSize="24" FontWeight="Bold"/>
+                    <TextBlock Text="{DynamicResource SettingsSubtitle}" Foreground="{StaticResource TextSecondary}" Margin="0,4,0,22"/>
 
-                    <!-- Log format card -->
-                    <Border Background="{StaticResource BgCard}"
-                            BorderBrush="{StaticResource BorderBrush}"
-                            BorderThickness="1" CornerRadius="10"
-                            Padding="20,18" Margin="0,0,0,14">
+                    <Border Style="{StaticResource CardBorder}" Margin="0,0,0,14">
                         <StackPanel>
-                            <TextBlock Text="Log Format"
-                                       FontSize="14" FontWeight="SemiBold"
-                                       Foreground="{StaticResource TextPrimary}"/>
-                            <TextBlock Text="Choose the output format for daily log files."
-                                       FontSize="12"
-                                       Foreground="{StaticResource TextSecondary}"
-                                       Margin="0,4,0,12"/>
-                            <ComboBox Style="{StaticResource ModernComboBox}"
-                                      SelectedIndex="{Binding LogFormatIndex}"
-                                      Width="200" HorizontalAlignment="Left">
+                            <TextBlock Text="{DynamicResource General}" Style="{StaticResource SectionTitle}"/>
+                            <TextBlock Text="{DynamicResource Language}" Style="{StaticResource FieldLabel}"/>
+                            <ComboBox SelectedIndex="{Binding LanguageIndex}" Style="{StaticResource ModernComboBox}" Width="220" HorizontalAlignment="Left">
+                                <ComboBoxItem Content="English" Foreground="{StaticResource TextPrimary}"/>
+                                <ComboBoxItem Content="Francais" Foreground="{StaticResource TextPrimary}"/>
+                            </ComboBox>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource CardBorder}" Margin="0,0,0,14">
+                        <StackPanel>
+                            <TextBlock Text="{DynamicResource Logging}" Style="{StaticResource SectionTitle}"/>
+                            <TextBlock Text="{DynamicResource LogFormat}" Style="{StaticResource FieldLabel}"/>
+                            <ComboBox SelectedIndex="{Binding LogFormatIndex}" Style="{StaticResource ModernComboBox}" Width="220" HorizontalAlignment="Left">
                                 <ComboBoxItem Content="JSON" Foreground="{StaticResource TextPrimary}"/>
-                                <ComboBoxItem Content="XML"  Foreground="{StaticResource TextPrimary}"/>
+                                <ComboBoxItem Content="XML" Foreground="{StaticResource TextPrimary}"/>
                             </ComboBox>
-                        </StackPanel>
-                    </Border>
 
-                    <!-- Log directory card -->
-                    <Border Background="{StaticResource BgCard}"
-                            BorderBrush="{StaticResource BorderBrush}"
-                            BorderThickness="1" CornerRadius="10"
-                            Padding="20,18" Margin="0,0,0,14">
-                        <StackPanel>
-                            <TextBlock Text="Log Directory"
-                                       FontSize="14" FontWeight="SemiBold"
-                                       Foreground="{StaticResource TextPrimary}"/>
-                            <TextBlock Text="Leave empty for the default AppData location."
-                                       FontSize="12"
-                                       Foreground="{StaticResource TextSecondary}"
-                                       Margin="0,4,0,12"
-                                       TextWrapping="Wrap"/>
-                            <TextBox Style="{StaticResource ModernTextBox}"
-                                     Text="{Binding LogDirectoryText, UpdateSourceTrigger=PropertyChanged}"
-                                     Width="480" HorizontalAlignment="Left"/>
-                        </StackPanel>
-                    </Border>
+                            <TextBlock Text="{DynamicResource LogDirectory}" Style="{StaticResource FieldLabel}"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBox Text="{Binding LogDirectoryText, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource ModernTextBox}" Margin="0,0,8,0"/>
+                                <Button Grid.Column="1" Content="{DynamicResource Browse}" Style="{StaticResource GhostBtn}" Command="{Binding BrowseLogDirectoryCommand}"/>
+                            </Grid>
 
-                    <!-- Centralized logging card -->
-                    <Border Background="{StaticResource BgCard}"
-                            BorderBrush="{StaticResource BorderBrush}"
-                            BorderThickness="1" CornerRadius="10"
-                            Padding="20,18" Margin="0,0,0,14">
-                        <StackPanel>
-                            <TextBlock Text="Centralized Logging"
-                                       FontSize="14" FontWeight="SemiBold"
-                                       Foreground="{StaticResource TextPrimary}"/>
-                            <TextBlock Text="Choose whether daily logs are local, central Docker service, or both."
-                                       FontSize="12"
-                                       Foreground="{StaticResource TextSecondary}"
-                                       Margin="0,4,0,12"
-                                       TextWrapping="Wrap"/>
-                            <ComboBox Style="{StaticResource ModernComboBox}"
-                                      SelectedIndex="{Binding LogDestinationModeIndex}"
-                                      Width="260" HorizontalAlignment="Left">
-                                <ComboBoxItem Content="Local only" Foreground="{StaticResource TextPrimary}"/>
-                                <ComboBoxItem Content="Central only" Foreground="{StaticResource TextPrimary}"/>
-                                <ComboBoxItem Content="Local + Central" Foreground="{StaticResource TextPrimary}"/>
+                            <TextBlock Text="{DynamicResource LogDestination}" Style="{StaticResource FieldLabel}"/>
+                            <ComboBox SelectedIndex="{Binding LogDestinationModeIndex}" Style="{StaticResource ModernComboBox}" Width="260" HorizontalAlignment="Left">
+                                <ComboBoxItem Content="{DynamicResource LocalOnly}" Foreground="{StaticResource TextPrimary}"/>
+                                <ComboBoxItem Content="{DynamicResource CentralOnly}" Foreground="{StaticResource TextPrimary}"/>
+                                <ComboBoxItem Content="{DynamicResource LocalAndCentral}" Foreground="{StaticResource TextPrimary}"/>
                             </ComboBox>
-                            <TextBlock Text="Central endpoint"
-                                       FontSize="12"
-                                       Foreground="{StaticResource TextSecondary}"
-                                       Margin="0,12,0,8"/>
-                            <TextBox Style="{StaticResource ModernTextBox}"
-                                     Text="{Binding CentralLogEndpoint, UpdateSourceTrigger=PropertyChanged}"
-                                     Width="480" HorizontalAlignment="Left"/>
-                            <TextBlock Text="Client ID"
-                                       FontSize="12"
-                                       Foreground="{StaticResource TextSecondary}"
-                                       Margin="0,12,0,8"/>
-                            <TextBox Style="{StaticResource ModernTextBox}"
-                                     Text="{Binding CentralClientId, UpdateSourceTrigger=PropertyChanged}"
-                                     Width="260" HorizontalAlignment="Left"/>
+
+                            <TextBlock Text="{DynamicResource CentralEndpoint}" Style="{StaticResource FieldLabel}"/>
+                            <TextBox Text="{Binding CentralLogEndpoint, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource ModernTextBox}"/>
+
+                            <TextBlock Text="{DynamicResource ClientId}" Style="{StaticResource FieldLabel}"/>
+                            <TextBox Text="{Binding CentralClientId, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource ModernTextBox}" Width="280" HorizontalAlignment="Left"/>
                         </StackPanel>
                     </Border>
 
-                    <!-- V3 scheduling card -->
-                    <Border Background="{StaticResource BgCard}"
-                            BorderBrush="{StaticResource BorderBrush}"
-                            BorderThickness="1" CornerRadius="10"
-                            Padding="20,18" Margin="0,0,0,14">
+                    <Border Style="{StaticResource CardBorder}" Margin="0,0,0,14">
                         <StackPanel>
-                            <TextBlock Text="V3 Scheduling"
-                                       FontSize="14" FontWeight="SemiBold"
-                                       Foreground="{StaticResource TextPrimary}"/>
-                            <TextBlock Text="Priority extensions are processed before non-priority files across running jobs."
-                                       FontSize="12"
-                                       Foreground="{StaticResource TextSecondary}"
-                                       Margin="0,4,0,12"
-                                       TextWrapping="Wrap"/>
-                            <TextBox Style="{StaticResource ModernTextBox}"
-                                     Text="{Binding PriorityExtensionsText, UpdateSourceTrigger=PropertyChanged}"
-                                     Width="340" HorizontalAlignment="Left"/>
-                            <TextBlock Text="Large file threshold (KB)"
-                                       FontSize="12"
-                                       Foreground="{StaticResource TextSecondary}"
-                                       Margin="0,12,0,8"/>
-                            <TextBox Style="{StaticResource ModernTextBox}"
-                                     Text="{Binding LargeFileThresholdKb, UpdateSourceTrigger=PropertyChanged}"
-                                     Width="180" HorizontalAlignment="Left"/>
+                            <TextBlock Text="{DynamicResource Scheduling}" Style="{StaticResource SectionTitle}"/>
+                            <TextBlock Text="{DynamicResource PriorityExtensions}" Style="{StaticResource FieldLabel}"/>
+                            <TextBox Text="{Binding PriorityExtensionsText, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource ModernTextBox}" Width="360" HorizontalAlignment="Left"/>
+                            <TextBlock Text="{DynamicResource LargeThreshold}" Style="{StaticResource FieldLabel}"/>
+                            <TextBox Text="{Binding LargeFileThresholdKb, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource ModernTextBox}" Width="180" HorizontalAlignment="Left"/>
                         </StackPanel>
                     </Border>
 
-                    <!-- Business software card -->
-                    <Border Background="{StaticResource BgCard}"
-                            BorderBrush="{StaticResource BorderBrush}"
-                            BorderThickness="1" CornerRadius="10"
-                            Padding="20,18" Margin="0,0,0,14">
+                    <Border Style="{StaticResource CardBorder}" Margin="0,0,0,14">
                         <StackPanel>
-                            <TextBlock Text="Business Software"
-                                       FontSize="14" FontWeight="SemiBold"
-                                       Foreground="{StaticResource TextPrimary}"/>
-                            <TextBlock FontSize="12"
-                                       Foreground="{StaticResource TextSecondary}"
-                                       Margin="0,4,0,12"
-                                       TextWrapping="Wrap">
-                                Process name to monitor. If running, backups will be blocked.
-                                Leave empty to disable. (e.g. "calc" for Calculator)
-                            </TextBlock>
-                            <TextBox Style="{StaticResource ModernTextBox}"
-                                     Text="{Binding BusinessSoftware, UpdateSourceTrigger=PropertyChanged}"
-                                     Width="300" HorizontalAlignment="Left"/>
+                            <TextBlock Text="{DynamicResource Encryption}" Style="{StaticResource SectionTitle}"/>
+                            <TextBlock Text="{DynamicResource EncryptedExtensions}" Style="{StaticResource FieldLabel}"/>
+                            <TextBox Text="{Binding EncryptedExtensionsText, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource ModernTextBox}" Width="360" HorizontalAlignment="Left"/>
                         </StackPanel>
                     </Border>
 
-                    <!-- V3 Parallel / scheduling settings -->
-                    <Border Background="{StaticResource BgCard}"
-                            BorderBrush="{StaticResource BorderBrush}"
-                            BorderThickness="1" CornerRadius="10"
-                            Padding="20,18" Margin="0,0,0,14">
+                    <Border Style="{StaticResource CardBorder}" Margin="0,0,0,14">
                         <StackPanel>
-                            <TextBlock Text="V3 Scheduling"
-                                       FontSize="14" FontWeight="SemiBold"
-                                       Foreground="{StaticResource TextPrimary}"/>
-                            <TextBlock Text="Priority extensions are processed before any non-priority files across all running jobs."
-                                       FontSize="12"
-                                       Foreground="{StaticResource TextSecondary}"
-                                       Margin="0,4,0,8"
-                                       TextWrapping="Wrap"/>
-                            <TextBox Style="{StaticResource ModernTextBox}"
-                                     Text="{Binding PriorityExtensionsText, UpdateSourceTrigger=PropertyChanged}"
-                                     Width="340" HorizontalAlignment="Left"/>
-                            <TextBlock Text="Large file threshold (KB) — only one transfer above this size can run at a time."
-                                       FontSize="12"
-                                       Foreground="{StaticResource TextSecondary}"
-                                       Margin="0,10,0,8"
-                                       TextWrapping="Wrap"/>
-                            <TextBox Style="{StaticResource ModernTextBox}"
-                                     Text="{Binding LargeFileThresholdKb, UpdateSourceTrigger=PropertyChanged}"
-                                     Width="200" HorizontalAlignment="Left"/>
+                            <TextBlock Text="{DynamicResource BusinessSoftware}" Style="{StaticResource SectionTitle}"/>
+                            <TextBlock Text="{DynamicResource BusinessProcessName}" Style="{StaticResource FieldLabel}"/>
+                            <TextBox Text="{Binding BusinessSoftware, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource ModernTextBox}" Width="320" HorizontalAlignment="Left"/>
                         </StackPanel>
                     </Border>
 
-                    <!-- Centralized log settings -->
-                    <Border Background="{StaticResource BgCard}"
-                            BorderBrush="{StaticResource BorderBrush}"
-                            BorderThickness="1" CornerRadius="10"
-                            Padding="20,18" Margin="0,0,0,14">
-                        <StackPanel>
-                            <TextBlock Text="Centralized Logging (Docker service)"
-                                       FontSize="14" FontWeight="SemiBold"
-                                       Foreground="{StaticResource TextPrimary}"/>
-                            <TextBlock Text="Choose where logs are stored: local files, central server, or both."
-                                       FontSize="12"
-                                       Foreground="{StaticResource TextSecondary}"
-                                       Margin="0,4,0,8"
-                                       TextWrapping="Wrap"/>
-                            <ComboBox Style="{StaticResource ModernComboBox}"
-                                      SelectedIndex="{Binding LogDestinationModeIndex}"
-                                      Width="340" HorizontalAlignment="Left">
-                                <ComboBoxItem Content="Local only" Foreground="{StaticResource TextPrimary}"/>
-                                <ComboBoxItem Content="Central only" Foreground="{StaticResource TextPrimary}"/>
-                                <ComboBoxItem Content="Local + Central" Foreground="{StaticResource TextPrimary}"/>
-                            </ComboBox>
-                            <TextBlock Text="Central endpoint (example: http://localhost:8080/api/logs)"
-                                       FontSize="12"
-                                       Foreground="{StaticResource TextSecondary}"
-                                       Margin="0,10,0,8"
-                                       TextWrapping="Wrap"/>
-                            <TextBox Style="{StaticResource ModernTextBox}"
-                                     Text="{Binding CentralLogEndpoint, UpdateSourceTrigger=PropertyChanged}"
-                                     Width="480" HorizontalAlignment="Left"/>
-                            <TextBlock Text="Client ID (optional)"
-                                       FontSize="12"
-                                       Foreground="{StaticResource TextSecondary}"
-                                       Margin="0,10,0,8"/>
-                            <TextBox Style="{StaticResource ModernTextBox}"
-                                     Text="{Binding CentralClientId, UpdateSourceTrigger=PropertyChanged}"
-                                     Width="280" HorizontalAlignment="Left"/>
-                        </StackPanel>
-                    </Border>
-
-                    <!-- Encrypted extensions card -->
-                    <Border Background="{StaticResource BgCard}"
-                            BorderBrush="{StaticResource BorderBrush}"
-                            BorderThickness="1" CornerRadius="10"
-                            Padding="20,18" Margin="0,0,0,14">
-                        <StackPanel>
-                            <TextBlock Text="Encrypted Extensions"
-                                       FontSize="14" FontWeight="SemiBold"
-                                       Foreground="{StaticResource TextPrimary}"/>
-                            <TextBlock FontSize="12"
-                                       Foreground="{StaticResource TextSecondary}"
-                                       Margin="0,4,0,12"
-                                       TextWrapping="Wrap">
-                                Comma-separated list of file extensions to encrypt via CryptoSoft
-                                after each backup. Leave empty to disable encryption.
-                                Example: .txt,.docx,.pdf
-                            </TextBlock>
-                            <TextBox Style="{StaticResource ModernTextBox}"
-                                     Text="{Binding EncryptedExtensionsText, UpdateSourceTrigger=PropertyChanged}"
-                                     Width="300" HorizontalAlignment="Left"/>
-                        </StackPanel>
-                    </Border>
-
-                    <!-- Save button -->
-                    <Button Content="Save Settings"
+                    <TextBlock Text="{Binding SettingsError}" Style="{StaticResource ErrorText}" Margin="0,0,0,8"/>
+                    <Button Content="{DynamicResource SaveSettings}"
                             Style="{StaticResource PrimaryBtn}"
-                            HorizontalAlignment="Left"
                             Command="{Binding SaveSettingsCommand}"
+                            HorizontalAlignment="Left"
                             Padding="20,10"/>
                 </StackPanel>
             </ScrollViewer>

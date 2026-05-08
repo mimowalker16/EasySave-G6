@@ -3,6 +3,10 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              ShutdownMode="OnMainWindowClose">
     <Application.Resources>
+        <ResourceDictionary>
+        <ResourceDictionary.MergedDictionaries>
+            <ResourceDictionary Source="Localization/Strings.en.xaml"/>
+        </ResourceDictionary.MergedDictionaries>
         <!-- ── Palette ─────────────────────────────────────────────────────── -->
         <Color x:Key="BgDeepColor">#0F1117</Color>
         <Color x:Key="BgCardColor">#1A1D2E</Color>
@@ -28,6 +32,14 @@
         <SolidColorBrush x:Key="TextSecondary" Color="{StaticResource TextSecondaryColor}"/>
         <SolidColorBrush x:Key="BorderBrush"  Color="{StaticResource BorderColor}"/>
         <SolidColorBrush x:Key="Transparent"  Color="Transparent"/>
+        <SolidColorBrush x:Key="InputBackground" Color="#111522"/>
+        <SolidColorBrush x:Key="MutedSurface" Color="#151927"/>
+        <SolidColorBrush x:Key="ChipIdle" Color="#3B4255"/>
+        <SolidColorBrush x:Key="ChipRunning" Color="#2F7D52"/>
+        <SolidColorBrush x:Key="ChipPaused" Color="#A67318"/>
+        <SolidColorBrush x:Key="ChipError" Color="#A93B3E"/>
+
+        <BooleanToVisibilityConverter x:Key="BoolToVisibility"/>
 
         <!-- ── Button styles ───────────────────────────────────────────────── -->
         <Style x:Key="PrimaryBtn" TargetType="Button">
@@ -98,9 +110,50 @@
             </Setter>
         </Style>
 
+        <Style x:Key="SmallGhostBtn" TargetType="Button" BasedOn="{StaticResource GhostBtn}">
+            <Setter Property="Padding" Value="10,6"/>
+            <Setter Property="FontSize" Value="11"/>
+        </Style>
+
+        <Style x:Key="CardBorder" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource BgCard}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="16"/>
+        </Style>
+
+        <Style x:Key="SectionTitle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
+            <Setter Property="FontSize" Value="15"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Margin" Value="0,0,0,10"/>
+        </Style>
+
+        <Style x:Key="FieldLabel" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource TextSecondary}"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Margin" Value="0,10,0,5"/>
+        </Style>
+
+        <Style x:Key="ErrorText" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource Danger}"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Margin" Value="0,4,0,0"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+        </Style>
+
+        <Style x:Key="SlimProgress" TargetType="ProgressBar">
+            <Setter Property="Height" Value="7"/>
+            <Setter Property="Background" Value="{StaticResource MutedSurface}"/>
+            <Setter Property="Foreground" Value="{StaticResource Accent}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+        </Style>
+
         <!-- ── TextBox style ───────────────────────────────────────────────── -->
         <Style x:Key="ModernTextBox" TargetType="TextBox">
-            <Setter Property="Background"       Value="{StaticResource BgDeep}"/>
+            <Setter Property="Background"       Value="{StaticResource InputBackground}"/>
             <Setter Property="Foreground"       Value="{StaticResource TextPrimary}"/>
             <Setter Property="BorderBrush"      Value="{StaticResource BorderBrush}"/>
             <Setter Property="BorderThickness"  Value="1"/>
@@ -128,12 +181,13 @@
 
         <!-- ── ComboBox style ──────────────────────────────────────────────── -->
         <Style x:Key="ModernComboBox" TargetType="ComboBox">
-            <Setter Property="Background"      Value="{StaticResource BgDeep}"/>
+            <Setter Property="Background"      Value="{StaticResource InputBackground}"/>
             <Setter Property="Foreground"      Value="{StaticResource TextPrimary}"/>
             <Setter Property="BorderBrush"     Value="{StaticResource BorderBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Padding"         Value="10,6"/>
             <Setter Property="FontSize"        Value="13"/>
         </Style>
+        </ResourceDictionary>
     </Application.Resources>
 </Application>

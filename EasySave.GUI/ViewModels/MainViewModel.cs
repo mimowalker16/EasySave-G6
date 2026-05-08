@@ -2,15 +2,18 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.IO;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
+using EasyLog;
 using EasySave.Core.Models;
 using EasySave.Core.Services;
 using EasySave.Core.ViewModels;
-using EasyLog;
+using Forms = System.Windows.Forms;
 
 namespace EasySave.GUI.ViewModels
 {
@@ -38,6 +41,8 @@ namespace EasySave.GUI.ViewModels
     {
         private string _status = "Idle";
         private double _progress;
+        private string _currentFileName = "-";
+        private string _lastActionDisplay = "-";
 
         public int Index { get; set; }
         public string Name { get; set; } = string.Empty;
@@ -54,7 +59,21 @@ namespace EasySave.GUI.ViewModels
         public double Progress
         {
             get => _progress;
-            set { _progress = value; OnPropertyChanged(); }
+            set { _progress = value; OnPropertyChanged(); OnPropertyChanged(nameof(ProgressText)); }
+        }
+
+        public string ProgressText => $"{Math.Round(Progress, 0)}%";
+
+        public string CurrentFileName
+        {
+            get => _currentFileName;
+            set { _currentFileName = string.IsNullOrWhiteSpace(value) ? "-" : value; OnPropertyChanged(); }
+        }
+
+        public string LastActionDisplay
+        {
+            get => _lastActionDisplay;
+            set { _lastActionDisplay = string.IsNullOrWhiteSpace(value) ? "-" : value; OnPropertyChanged(); }
         }
 
         public event PropertyChangedEventHandler? PropertyChanged;
@@ -67,6 +86,7 @@ namespace EasySave.GUI.ViewModels
         private readonly BackupViewModel _core;
         private CancellationTokenSource? _runCts;
         private bool _isBusy;
+        private bool _isFormDirty;
 
         public ObservableCollection<JobRow> JobRows { get; } = new();
 
@@ -78,7 +98,12 @@ namespace EasySave.GUI.ViewModels
         private string _statusMessage = string.Empty;
         private bool _isEditing;
         private string _currentPage = "Jobs";
+        private string _formNameError = string.Empty;
+        private string _formSourceError = string.Empty;
+        private string _formTargetError = string.Empty;
+        private string _settingsError = string.Empty;
 
+        private int _languageIndex;
         private int _logFormatIndex;
         private string _logDirectoryText = string.Empty;
         private int _logDestinationModeIndex;
@@ -92,25 +117,25 @@ namespace EasySave.GUI.ViewModels
         public string FormName
         {
             get => _formName;
-            set { _formName = value; OnPropertyChanged(); }
+            set { _formName = value; OnPropertyChanged(); MarkFormDirtyAndValidate(); }
         }
 
         public string FormSource
         {
             get => _formSource;
-            set { _formSource = value; OnPropertyChanged(); }
+            set { _formSource = value; OnPropertyChanged(); MarkFormDirtyAndValidate(); }
         }
 
         public string FormTarget
         {
             get => _formTarget;
-            set { _formTarget = value; OnPropertyChanged(); }
+            set { _formTarget = value; OnPropertyChanged(); MarkFormDirtyAndValidate(); }
         }
 
         public int FormTypeIndex
         {
             get => _formTypeIndex;
-            set { _formTypeIndex = value; OnPropertyChanged(); }
+            set { _formTypeIndex = value; OnPropertyChanged(); ValidateJobForm(); }
         }
 
         public JobRow? SelectedJob
@@ -131,7 +156,7 @@ namespace EasySave.GUI.ViewModels
             set { _isEditing = value; OnPropertyChanged(); OnPropertyChanged(nameof(FormTitle)); }
         }
 
-        public string FormTitle => IsEditing ? "Edit Job" : "New Job";
+        public string FormTitle => IsEditing ? T("Edit") : T("NewJob");
 
         public string CurrentPage
         {
@@ -148,6 +173,50 @@ namespace EasySave.GUI.ViewModels
                 _isBusy = value;
                 OnPropertyChanged();
                 CommandManager.InvalidateRequerySuggested();
+            }
+        }
+
+        public bool HasJobs => JobRows.Count > 0;
+        public bool HasNoJobs => JobRows.Count == 0;
+
+        public string FormNameError
+        {
+            get => _formNameError;
+            private set { _formNameError = value; OnPropertyChanged(); }
+        }
+
+        public string FormSourceError
+        {
+            get => _formSourceError;
+            private set { _formSourceError = value; OnPropertyChanged(); }
+        }
+
+        public string FormTargetError
+        {
+            get => _formTargetError;
+            private set { _formTargetError = value; OnPropertyChanged(); }
+        }
+
+        public string SettingsError
+        {
+            get => _settingsError;
+            private set { _settingsError = value; OnPropertyChanged(); }
+        }
+
+        public bool CanSaveJob => string.IsNullOrEmpty(FormNameError)
+                                  && string.IsNullOrEmpty(FormSourceError)
+                                  && string.IsNullOrEmpty(FormTargetError)
+                                  && !IsBusy;
+
+        public int LanguageIndex
+        {
+            get => _languageIndex;
+            set
+            {
+                if (_languageIndex == value) return;
+                _languageIndex = value;
+                OnPropertyChanged();
+                ApplyLanguage(value == 1 ? "fr" : "en");
             }
         }
 
@@ -219,6 +288,9 @@ namespace EasySave.GUI.ViewModels
         public ICommand PauseAllCommand { get; }
         public ICommand ResumeAllCommand { get; }
         public ICommand StopAllCommand { get; }
+        public ICommand BrowseSourceCommand { get; }
+        public ICommand BrowseTargetCommand { get; }
+        public ICommand BrowseLogDirectoryCommand { get; }
 
         public MainViewModel(BackupViewModel core)
         {
@@ -240,7 +312,7 @@ namespace EasySave.GUI.ViewModels
             BusinessSoftware = core.Settings.BusinessSoftwareName;
             EncryptedExtensionsText = string.Join(",", core.Settings.EncryptedExtensions);
 
-            SaveJobCommand = new RelayCommand(_ => SaveJob(), _ => !IsBusy);
+            SaveJobCommand = new RelayCommand(_ => SaveJob(), _ => CanSaveJob);
             DeleteJobCommand = new RelayCommand(DeleteJob, _ => !IsBusy);
             ExecuteJobCommand = new RelayCommand(ExecuteJobKickoff, _ => !IsBusy);
             ExecuteAllCommand = new RelayCommand(_ => ExecuteAllKickoff(), _ => !IsBusy && JobRows.Count > 0);
@@ -254,14 +326,23 @@ namespace EasySave.GUI.ViewModels
             PauseAllCommand = new RelayCommand(_ => PauseAllJobs());
             ResumeAllCommand = new RelayCommand(_ => ResumeAllJobs());
             StopAllCommand = new RelayCommand(_ => StopAllJobs());
+            BrowseSourceCommand = new RelayCommand(_ => BrowseFolder(path => FormSource = path, FormSource));
+            BrowseTargetCommand = new RelayCommand(_ => BrowseFolder(path => FormTarget = path, FormTarget));
+            BrowseLogDirectoryCommand = new RelayCommand(_ => BrowseFolder(path => LogDirectoryText = path, LogDirectoryText));
 
             RefreshJobRows();
+            StartNewJob();
+            StatusMessage = "Ready.";
         }
 
         private void SaveJob()
         {
-            var type = FormTypeIndex == 1 ? BackupType.Differential : BackupType.Full;
+            _isFormDirty = true;
+            ValidateJobForm();
+            if (!CanSaveJob)
+                return;
 
+            var type = FormTypeIndex == 1 ? BackupType.Differential : BackupType.Full;
             if (IsEditing && SelectedJob != null)
             {
                 var (ok, err) = _core.EditJob(SelectedJob.Index, FormName, FormSource, FormTarget, type);
@@ -281,6 +362,14 @@ namespace EasySave.GUI.ViewModels
         {
             var row = parameter as JobRow ?? SelectedJob;
             if (row == null) return;
+
+            MessageBoxResult confirm = System.Windows.MessageBox.Show(
+                $"Delete backup job '{row.Name}'?",
+                "Confirm delete",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+            if (confirm != MessageBoxResult.Yes)
+                return;
 
             var (ok, err) = _core.DeleteJob(row.Index);
             StatusMessage = ok ? "Job deleted." : err;
@@ -316,17 +405,9 @@ namespace EasySave.GUI.ViewModels
                 (bool ok, string error) = await Task.Run(
                     () => _core.ExecuteJob(row.Index, _runCts.Token));
 
-                if (!ok)
-                {
-                    row.Status = error == "cancelled" ? "Canceled" : $"Error: {error}";
-                    StatusMessage = $"{row.Name}: {error}";
-                }
-                else
-                {
-                    row.Progress = 100;
-                    row.Status = "Done";
-                    StatusMessage = $"{row.Name} completed.";
-                }
+                row.Status = ok ? "Done" : (error == "cancelled" ? "Canceled" : $"Error: {error}");
+                StatusMessage = ok ? $"{row.Name} completed." : $"{row.Name}: {error}";
+                if (ok) row.Progress = 100;
             }
             finally
             {
@@ -400,27 +481,24 @@ namespace EasySave.GUI.ViewModels
         private void PauseAllJobs()
         {
             _core.PauseAllJobs();
-            foreach (JobRow row in JobRows)
-                if (row.Status == "Running")
-                    row.Status = "Paused";
+            foreach (JobRow row in JobRows.Where(r => r.Status == "Running"))
+                row.Status = "Paused";
             StatusMessage = "Pause requested for running jobs.";
         }
 
         private void ResumeAllJobs()
         {
             _core.ResumeAllJobs();
-            foreach (JobRow row in JobRows)
-                if (row.Status == "Paused")
-                    row.Status = "Running";
+            foreach (JobRow row in JobRows.Where(r => r.Status == "Paused"))
+                row.Status = "Running";
             StatusMessage = "Resume requested for paused jobs.";
         }
 
         private void StopAllJobs()
         {
             _core.StopAllJobs();
-            foreach (JobRow row in JobRows)
-                if (row.Status == "Running" || row.Status == "Paused")
-                    row.Status = "Stopping";
+            foreach (JobRow row in JobRows.Where(r => r.Status == "Running" || r.Status == "Paused"))
+                row.Status = "Stopping";
             StatusMessage = "Stop requested for running jobs.";
         }
 
@@ -429,28 +507,44 @@ namespace EasySave.GUI.ViewModels
             if (row == null) return;
             SelectedJob = row;
             IsEditing = true;
+            _isFormDirty = false;
             FormName = row.Name;
             FormSource = row.Source;
             FormTarget = row.Target;
-            FormTypeIndex = row.Type == "Differential" ? 1 : 0;
+            FormTypeIndex = row.Type == BackupType.Differential.ToString() ? 1 : 0;
+            ClearValidation();
         }
 
         private void StartNewJob()
         {
             IsEditing = false;
             SelectedJob = null;
-            FormName = string.Empty;
-            FormSource = string.Empty;
-            FormTarget = string.Empty;
-            FormTypeIndex = 0;
+            _isFormDirty = false;
+            _formName = string.Empty;
+            _formSource = string.Empty;
+            _formTarget = string.Empty;
+            _formTypeIndex = 0;
+            OnPropertyChanged(nameof(FormName));
+            OnPropertyChanged(nameof(FormSource));
+            OnPropertyChanged(nameof(FormTarget));
+            OnPropertyChanged(nameof(FormTypeIndex));
+            OnPropertyChanged(nameof(FormTitle));
+            ClearValidation();
         }
 
         private void SaveSettings()
         {
+            if (LargeFileThresholdKb < 0)
+            {
+                SettingsError = "Large file threshold must be zero or greater.";
+                return;
+            }
+
             var settings = new AppSettings
             {
                 LogFormat = LogFormatIndex == 1 ? LogFormat.Xml : LogFormat.Json,
                 LogDirectory = LogDirectoryText.Trim(),
+                JsonLogLayout = _core.Settings.JsonLogLayout,
                 LogDestinationMode = LogDestinationModeIndex switch
                 {
                     1 => LogDestinationMode.CentralOnly,
@@ -460,18 +554,19 @@ namespace EasySave.GUI.ViewModels
                 CentralLogEndpoint = CentralLogEndpoint.Trim(),
                 CentralClientId = CentralClientId.Trim(),
                 PriorityExtensions = ParseExtensions(PriorityExtensionsText),
-                LargeFileThresholdKb = Math.Max(0, LargeFileThresholdKb),
+                LargeFileThresholdKb = LargeFileThresholdKb,
                 EncryptedExtensions = ParseExtensions(EncryptedExtensionsText),
                 BusinessSoftwareName = BusinessSoftware.Trim()
             };
 
             _core.UpdateSettings(settings);
+            SettingsError = string.Empty;
             StatusMessage = "Settings saved.";
         }
 
         private void OnCoreStateChanged(int zeroBasedIndex, BackupState state)
         {
-            Application.Current?.Dispatcher.Invoke(() =>
+            System.Windows.Application.Current?.Dispatcher.Invoke(() =>
             {
                 if (zeroBasedIndex < 0 || zeroBasedIndex >= JobRows.Count)
                     return;
@@ -486,6 +581,8 @@ namespace EasySave.GUI.ViewModels
                     BackupStateType.End => "Done",
                     _ => "Idle"
                 };
+                row.CurrentFileName = Path.GetFileName(state.CurrentSourceFile);
+                row.LastActionDisplay = FormatTimestamp(state.LastActionTimestamp);
             });
         }
 
@@ -505,6 +602,50 @@ namespace EasySave.GUI.ViewModels
                     Status = "Idle"
                 });
             }
+            OnPropertyChanged(nameof(HasJobs));
+            OnPropertyChanged(nameof(HasNoJobs));
+            CommandManager.InvalidateRequerySuggested();
+        }
+
+        private void MarkFormDirtyAndValidate()
+        {
+            _isFormDirty = true;
+            ValidateJobForm();
+        }
+
+        private void ValidateJobForm()
+        {
+            if (!_isFormDirty)
+                return;
+
+            int selectedIndex = SelectedJob?.Index ?? 0;
+            FormNameError = string.IsNullOrWhiteSpace(FormName)
+                ? "Job name is required."
+                : _core.Jobs.Select((job, i) => new { Job = job, Index = i + 1 })
+                    .Any(item => item.Index != selectedIndex
+                                 && item.Job.Name.Equals(FormName.Trim(), StringComparison.OrdinalIgnoreCase))
+                    ? "A job with this name already exists."
+                    : string.Empty;
+
+            FormSourceError = string.IsNullOrWhiteSpace(FormSource)
+                ? "Source folder is required."
+                : string.Empty;
+
+            FormTargetError = string.IsNullOrWhiteSpace(FormTarget)
+                ? "Target folder is required."
+                : string.Empty;
+
+            OnPropertyChanged(nameof(CanSaveJob));
+            CommandManager.InvalidateRequerySuggested();
+        }
+
+        private void ClearValidation()
+        {
+            FormNameError = string.Empty;
+            FormSourceError = string.Empty;
+            FormTargetError = string.Empty;
+            OnPropertyChanged(nameof(CanSaveJob));
+            CommandManager.InvalidateRequerySuggested();
         }
 
         private static List<string> ParseExtensions(string rawText)
@@ -516,9 +657,51 @@ namespace EasySave.GUI.ViewModels
                 if (string.IsNullOrEmpty(ext)) continue;
                 result.Add(ext.StartsWith('.') ? ext : "." + ext);
             }
-
             return result;
         }
+
+        private static string FormatTimestamp(string timestamp)
+        {
+            return DateTime.TryParse(timestamp, out DateTime value)
+                ? value.ToString("HH:mm:ss")
+                : "-";
+        }
+
+        private static void BrowseFolder(Action<string> assign, string currentPath)
+        {
+            using var dialog = new Forms.FolderBrowserDialog
+            {
+                ShowNewFolderButton = true,
+                SelectedPath = Directory.Exists(currentPath) ? currentPath : string.Empty
+            };
+
+            if (dialog.ShowDialog() == Forms.DialogResult.OK)
+                assign(dialog.SelectedPath);
+        }
+
+        private static void ApplyLanguage(string culture)
+        {
+            string source = culture == "fr"
+                ? "Localization/Strings.fr.xaml"
+                : "Localization/Strings.en.xaml";
+
+            ResourceDictionary dictionary = new()
+            {
+                Source = new Uri(source, UriKind.Relative)
+            };
+
+            var merged = System.Windows.Application.Current.Resources.MergedDictionaries;
+            ResourceDictionary? existing = merged.FirstOrDefault(d =>
+                d.Source != null && d.Source.OriginalString.Contains("Localization/Strings.", StringComparison.OrdinalIgnoreCase));
+
+            if (existing != null)
+                merged.Remove(existing);
+
+            merged.Insert(0, dictionary);
+        }
+
+        private static string T(string key)
+            => System.Windows.Application.Current.TryFindResource(key)?.ToString() ?? key;
 
         public event PropertyChangedEventHandler? PropertyChanged;
         private void OnPropertyChanged([CallerMemberName] string? name = null)
