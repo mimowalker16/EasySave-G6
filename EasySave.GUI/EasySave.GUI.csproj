@@ -17,10 +17,13 @@
 
   <Target Name="CopyCryptoSoftExe" AfterTargets="Build">
     <PropertyGroup>
-      <CryptoSoftExe>$(MSBuildThisFileDirectory)..\CryptoSoft\bin\$(Configuration)\net8.0\CryptoSoft.exe</CryptoSoftExe>
+      <CryptoSoftOutput>$(MSBuildThisFileDirectory)..\CryptoSoft\bin\$(Configuration)\net8.0\</CryptoSoftOutput>
     </PropertyGroup>
-    <Copy SourceFiles="$(CryptoSoftExe)" DestinationFolder="$(OutDir)"
-          SkipUnchangedFiles="true" Condition="Exists('$(CryptoSoftExe)')" />
+    <ItemGroup>
+      <CryptoSoftRuntime Include="$(CryptoSoftOutput)CryptoSoft.*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(CryptoSoftRuntime)" DestinationFolder="$(OutDir)"
+          SkipUnchangedFiles="true" Condition="Exists('$(CryptoSoftOutput)CryptoSoft.exe')" />
   </Target>
 
 </Project>

@@ -928,28 +928,38 @@ namespace EasySave.GUI.ViewModels
 
         private void RefreshLogs()
         {
-            LogRows.Clear();
-            RecentActivity.Clear();
-
-            DateTime date = DateTime.TryParse(LogDateText, out DateTime parsed)
-                ? parsed.Date
-                : DateTime.Today;
-
-            string logDir = LogDirectoryResolver.Resolve(LogDirectoryText);
-            foreach (LogRow row in LoadLogRows(logDir, date)
-                         .Where(PassesLogFilters)
-                         .OrderByDescending(r => r.Time))
+            try
             {
-                LogRows.Add(row);
-                if (RecentActivity.Count < 6)
-                    RecentActivity.Add(row);
-            }
+                LogRows.Clear();
+                RecentActivity.Clear();
 
-            LogDateText = date.ToString("yyyy-MM-dd");
-            OnPropertyChanged(nameof(HasLogs));
-            OnPropertyChanged(nameof(HasNoLogs));
-            if (RecentActivity.FirstOrDefault(r => r.Result == "OK") is { } success)
-                LastSuccessfulBackup = success.Time;
+                DateTime date = DateTime.TryParse(LogDateText, out DateTime parsed)
+                    ? parsed.Date
+                    : DateTime.Today;
+
+                string logDir = LogDirectoryResolver.Resolve(LogDirectoryText);
+                foreach (LogRow row in LoadLogRows(logDir, date)
+                             .Where(PassesLogFilters)
+                             .OrderByDescending(r => r.Time))
+                {
+                    LogRows.Add(row);
+                    if (RecentActivity.Count < 6)
+                        RecentActivity.Add(row);
+                }
+
+                LogDateText = date.ToString("yyyy-MM-dd");
+                if (RecentActivity.FirstOrDefault(r => r.Result == "OK") is { } success)
+                    LastSuccessfulBackup = success.Time;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                StatusMessage = $"Log refresh skipped: {ex.Message}";
+            }
+            finally
+            {
+                OnPropertyChanged(nameof(HasLogs));
+                OnPropertyChanged(nameof(HasNoLogs));
+            }
         }
 
         private IEnumerable<LogRow> LoadLogRows(string logDir, DateTime date)
@@ -971,7 +981,22 @@ namespace EasySave.GUI.ViewModels
 
         private static IEnumerable<LogRow> LoadJsonLogRows(string file)
         {
-            using JsonDocument document = JsonDocument.Parse(File.ReadAllText(file));
+            string json = ReadSharedText(file);
+            if (string.IsNullOrWhiteSpace(json))
+                yield break;
+
+            JsonDocument document;
+            try
+            {
+                document = JsonDocument.Parse(json);
+            }
+            catch (JsonException)
+            {
+                yield break;
+            }
+
+            using (document)
+            {
             IEnumerable<JsonElement> entries = document.RootElement.ValueKind switch
             {
                 JsonValueKind.Array => document.RootElement.EnumerateArray(),
@@ -988,11 +1013,25 @@ namespace EasySave.GUI.ViewModels
                     GetJsonLong(entry, "FileSize"),
                     GetJsonLong(entry, "TransferTimeMs"),
                     GetJsonLong(entry, "EncryptionTimeMs"));
+            }
         }
 
         private static IEnumerable<LogRow> LoadXmlLogRows(string file)
         {
-            XDocument document = XDocument.Load(file);
+            string xml = ReadSharedText(file);
+            if (string.IsNullOrWhiteSpace(xml))
+                yield break;
+
+            XDocument document;
+            try
+            {
+                document = XDocument.Parse(xml);
+            }
+            catch
+            {
+                yield break;
+            }
+
             foreach (XElement entry in document.Descendants("LogEntry"))
             {
                 yield return BuildLogRow(
@@ -1004,6 +1043,17 @@ namespace EasySave.GUI.ViewModels
                     ParseLong((string?)entry.Element("TransferTimeMs")),
                     ParseLong((string?)entry.Element("EncryptionTimeMs")));
             }
+        }
+
+        private static string ReadSharedText(string file)
+        {
+            using var stream = new FileStream(
+                file,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete);
+            using var reader = new StreamReader(stream);
+            return reader.ReadToEnd();
         }
 
         private bool PassesLogFilters(LogRow row)

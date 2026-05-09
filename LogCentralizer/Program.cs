@@ -38,7 +38,7 @@ app.MapPost("/api/logs", async (HttpContext ctx) =>
         ["serverTimestamp"] = DateTime.UtcNow.ToString("o"),
         ["clientId"] = clientId,
         ["format"] = payload["format"]?.GetValue<string>() ?? "Unknown",
-        ["entry"] = entry
+        ["entry"] = entry.DeepClone()
     };
 
     string line = lineObj.ToJsonString() + Environment.NewLine;

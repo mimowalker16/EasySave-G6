@@ -15,6 +15,7 @@ namespace EasySave.Core.Services
     {
         private const int CopyBufferBytes = 262144;
         private const int CoordinationSleepMs = 120;
+        private const string CryptoSoftKey = "EasySave-CryptoSoft-Key";
 
         private static readonly SemaphoreSlim LargeFileTransferSemaphore = new(1, 1);
         private static readonly SemaphoreSlim CryptoSoftSemaphore = new(1, 1);
@@ -364,7 +365,7 @@ namespace EasySave.Core.Services
                 var psi = new ProcessStartInfo
                 {
                     FileName = cryptoSoftPath,
-                    Arguments = $"\"{filePath}\"",
+                    Arguments = $"{QuoteArgument(filePath)} {QuoteArgument(CryptoSoftKey)}",
                     UseShellExecute = false,
                     RedirectStandardOutput = false,
                     CreateNoWindow = true
@@ -412,6 +413,9 @@ namespace EasySave.Core.Services
             {
             }
         }
+
+        private static string QuoteArgument(string argument)
+            => "\"" + argument.Replace("\"", "\\\"") + "\"";
 
         private static long SafeFileLength(string path)
         {
