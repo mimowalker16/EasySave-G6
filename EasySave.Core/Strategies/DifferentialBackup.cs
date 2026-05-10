@@ -22,8 +22,10 @@ namespace EasySave.Core.Strategies
                 string relativePath = Path.GetRelativePath(job.SourceDirectory, sourceFile);
                 string targetFile   = Path.Combine(job.TargetDirectory, relativePath);
 
-                bool shouldCopy = !File.Exists(targetFile)
-                               || File.GetLastWriteTime(sourceFile) > File.GetLastWriteTime(targetFile);
+                // Single FileInfo stat instead of two separate OS calls (Exists + GetLastWriteTime).
+                var targetInfo = new FileInfo(targetFile);
+                bool shouldCopy = !targetInfo.Exists
+                               || File.GetLastWriteTime(sourceFile) > targetInfo.LastWriteTime;
 
                 if (shouldCopy)
                     result.Add((sourceFile, targetFile));
@@ -33,3 +35,4 @@ namespace EasySave.Core.Strategies
         }
     }
 }
+
