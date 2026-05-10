@@ -16,7 +16,8 @@ namespace EasySave.Core.Services
 
         private static readonly JsonSerializerOptions _jsonOptions = new()
         {
-            WriteIndented = true
+            // state.json is machine-read only — compact JSON is ~2x faster to serialize.
+            WriteIndented = false
         };
 
         /// <summary>Production constructor — uses %APPDATA%\EasySave\.</summary>
