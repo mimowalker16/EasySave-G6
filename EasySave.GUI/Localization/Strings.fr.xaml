@@ -70,6 +70,12 @@
     <sys:String x:Key="EncryptionMs">Chiffrement</sys:String>
     <sys:String x:Key="Result">Resultat</sys:String>
     <sys:String x:Key="Language">Langue</sys:String>
+    <sys:String x:Key="ColorPalette">Palette de couleurs</sys:String>
+    <sys:String x:Key="PaletteMidnight">Minuit</sys:String>
+    <sys:String x:Key="PaletteForest">Foret</sys:String>
+    <sys:String x:Key="PaletteOcean">Ocean</sys:String>
+    <sys:String x:Key="PaletteBurgundy">Bordeaux</sys:String>
+    <sys:String x:Key="PaletteHighContrast">Contraste eleve</sys:String>
     <sys:String x:Key="General">General</sys:String>
     <sys:String x:Key="Logging">Journalisation</sys:String>
     <sys:String x:Key="Scheduling">Ordonnancement</sys:String>

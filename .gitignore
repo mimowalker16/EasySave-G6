@@ -20,6 +20,7 @@ publish-*/
 *.userosscache
 *.sln.docview
 **/Properties/launchSettings.json
+*.lscache
 
 # NuGet
 *.nupkg

@@ -1,5 +1,6 @@
 using System.Windows;
 using EasySave.Core.Services;
+using EasySave.GUI.Services;
 using EasySave.Core.ViewModels;
 using EasySave.GUI.ViewModels;
 
@@ -23,6 +24,8 @@ namespace EasySave.GUI
                 settingsService,
                 businessSoftware,
                 maxJobs: 0); // 0 = unlimited
+
+            AppThemeService.ApplyPalette(backupViewModel.Settings.UiThemePalette);
 
             var mainViewModel = new MainViewModel(backupViewModel);
 

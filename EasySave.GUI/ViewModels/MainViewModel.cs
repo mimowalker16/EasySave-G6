@@ -18,6 +18,7 @@ using EasyLog;
 using EasySave.Core.Models;
 using EasySave.Core.Services;
 using EasySave.Core.ViewModels;
+using EasySave.GUI.Services;
 using Forms = System.Windows.Forms;
 
 namespace EasySave.GUI.ViewModels
@@ -165,6 +166,7 @@ namespace EasySave.GUI.ViewModels
         private string _largeFileThresholdText = "0";
         private string _businessSoftware = string.Empty;
         private string _encryptedExtensionsText = string.Empty;
+        private int _themePaletteIndex;
 
         public ObservableCollection<HealthWarning> HealthWarnings { get; } = new();
         public ObservableCollection<LogRow> LogRows { get; } = new();
@@ -301,6 +303,18 @@ namespace EasySave.GUI.ViewModels
                 _languageIndex = value;
                 OnPropertyChanged();
                 ApplyLanguage(value == 1 ? "fr" : "en");
+            }
+        }
+
+        public int ThemePaletteIndex
+        {
+            get => _themePaletteIndex;
+            set
+            {
+                if (_themePaletteIndex == value) return;
+                _themePaletteIndex = value;
+                OnPropertyChanged();
+                AppThemeService.ApplyPalette(AppThemeService.GetPaletteName(value));
             }
         }
 
@@ -454,6 +468,7 @@ namespace EasySave.GUI.ViewModels
             EncryptedExtensionsText = string.Join(",", core.Settings.EncryptedExtensions);
             ResetChips(PriorityExtensionChips, core.Settings.PriorityExtensions);
             ResetChips(EncryptedExtensionChips, core.Settings.EncryptedExtensions);
+            ThemePaletteIndex = AppThemeService.GetPaletteIndex(core.Settings.UiThemePalette);
             LanguageIndex = string.Equals(core.Settings.UiLanguage, "fr", StringComparison.OrdinalIgnoreCase) ? 1 : 0;
 
             SaveJobCommand = new RelayCommand(_ => SaveJob(), _ => CanSaveJob);
@@ -725,7 +740,8 @@ namespace EasySave.GUI.ViewModels
                 LargeFileThresholdKb = thresholdKb,
                 EncryptedExtensions = EncryptedExtensionChips.ToList(),
                 BusinessSoftwareName = BusinessSoftware.Trim(),
-                UiLanguage = LanguageIndex == 1 ? "fr" : "en"
+                UiLanguage = LanguageIndex == 1 ? "fr" : "en",
+                UiThemePalette = AppThemeService.GetPaletteName(ThemePaletteIndex)
             };
 
             _core.UpdateSettings(settings);

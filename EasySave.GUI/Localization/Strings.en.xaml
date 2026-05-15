@@ -70,6 +70,12 @@
     <sys:String x:Key="EncryptionMs">Encryption</sys:String>
     <sys:String x:Key="Result">Result</sys:String>
     <sys:String x:Key="Language">Language</sys:String>
+    <sys:String x:Key="ColorPalette">Color palette</sys:String>
+    <sys:String x:Key="PaletteMidnight">Midnight</sys:String>
+    <sys:String x:Key="PaletteForest">Forest</sys:String>
+    <sys:String x:Key="PaletteOcean">Ocean</sys:String>
+    <sys:String x:Key="PaletteBurgundy">Burgundy</sys:String>
+    <sys:String x:Key="PaletteHighContrast">High contrast</sys:String>
     <sys:String x:Key="General">General</sys:String>
     <sys:String x:Key="Logging">Logging</sys:String>
     <sys:String x:Key="Scheduling">Scheduling</sys:String>

@@ -137,5 +137,9 @@ namespace EasySave.Core.Services
         /// <summary>Preferred WPF language ("en" or "fr"). Console localization remains separate.</summary>
         [JsonPropertyName("UiLanguage")]
         public string UiLanguage { get; set; } = "en";
+
+        /// <summary>Preferred WPF color palette. Console display remains separate.</summary>
+        [JsonPropertyName("UiThemePalette")]
+        public string UiThemePalette { get; set; } = "Midnight";
     }
 }
