@@ -2,23 +2,27 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              ShutdownMode="OnMainWindowClose">
+
     <Application.Resources>
         <ResourceDictionary>
-        <ResourceDictionary.MergedDictionaries>
-            <ResourceDictionary Source="Localization/Strings.en.xaml"/>
-        </ResourceDictionary.MergedDictionaries>
-        <!-- ── Palette ─────────────────────────────────────────────────────── -->
-        <Color x:Key="BgDeepColor">#0F1117</Color>
-        <Color x:Key="BgCardColor">#1A1D2E</Color>
-        <Color x:Key="BgHoverColor">#23263A</Color>
-        <Color x:Key="AccentColor">#5865F2</Color>
-        <Color x:Key="AccentHoverColor">#4752C4</Color>
-        <Color x:Key="SuccessColor">#3BA55D</Color>
-        <Color x:Key="DangerColor">#ED4245</Color>
-        <Color x:Key="WarningColor">#FAA61A</Color>
-        <Color x:Key="TextPrimaryColor">#FFFFFF</Color>
-        <Color x:Key="TextSecondaryColor">#99AAB5</Color>
-        <Color x:Key="BorderColor">#2C2F45</Color>
+
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="Localization/Strings.en.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+
+            <!-- COLORS -->
+            <Color x:Key="BgDeepColor">#01012B</Color>
+            <Color x:Key="BgCardColor">#040d2e</Color>
+            <Color x:Key="BgHoverColor">#071840</Color>
+            <Color x:Key="AccentColor">#05D9E8</Color>
+            <Color x:Key="AccentHoverColor">#D1F7FF</Color>
+            <Color x:Key="SecondaryAccentColor">#FF2A6D</Color>
+            <Color x:Key="SuccessColor">#05D9E8</Color>
+            <Color x:Key="DangerColor">#FF2A6D</Color>
+            <Color x:Key="WarningColor">#D1F7FF</Color>
+            <Color x:Key="TextPrimaryColor">#D1F7FF</Color>
+            <Color x:Key="TextSecondaryColor">#7AA6C2</Color>
+            <Color x:Key="BorderColor">#005678</Color>
 
         <SolidColorBrush x:Key="BgDeep"       Color="{StaticResource BgDeepColor}"/>
         <SolidColorBrush x:Key="BgCard"       Color="{StaticResource BgCardColor}"/>
@@ -41,7 +45,7 @@
 
         <FontFamily x:Key="AppFontFamily">Monaspace Neon, ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, Liberation Mono, monospace</FontFamily>
 
-        <BooleanToVisibilityConverter x:Key="BoolToVisibility"/>
+            <BooleanToVisibilityConverter x:Key="BoolToVisibility"/>
 
         <!-- ── Button styles ───────────────────────────────────────────────── -->
         <Style x:Key="PrimaryBtn" TargetType="Button">
@@ -112,15 +116,48 @@
             </Setter>
         </Style>
 
-        <Style x:Key="SmallGhostBtn" TargetType="Button" BasedOn="{StaticResource GhostBtn}">
-            <Setter Property="Padding" Value="10,6"/>
-            <Setter Property="FontSize" Value="11"/>
-        </Style>
+            <!-- SMALL GHOST BUTTON -->
+            <Style x:Key="SmallGhostBtn" TargetType="Button" BasedOn="{StaticResource GhostBtn}">
+                <Setter Property="Padding" Value="10,5"/>
+                <Setter Property="FontSize" Value="11"/>
+            </Style>
 
-        <Style x:Key="SettingsTabControl" TargetType="TabControl">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="BorderThickness" Value="0"/>
-        </Style>
+            <!-- SUCCESS BUTTON -->
+            <Style x:Key="SuccessBtn" TargetType="Button">
+                <Setter Property="Foreground" Value="#01012B"/>
+                <Setter Property="FontWeight" Value="Bold"/>
+                <Setter Property="FontFamily" Value="Consolas"/>
+                <Setter Property="Cursor" Value="Hand"/>
+                <Setter Property="Padding" Value="18,9"/>
+                <Setter Property="FontSize" Value="12"/>
+                <Setter Property="BorderThickness" Value="0"/>
+                <Setter Property="Background" Value="#05D9E8"/>
+                <Setter Property="Effect">
+                    <Setter.Value>
+                        <DropShadowEffect BlurRadius="16" ShadowDepth="0" Color="#05D9E8" Opacity="0.5"/>
+                    </Setter.Value>
+                </Setter>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="Bd"
+                                    Background="{TemplateBinding Background}"
+                                    CornerRadius="10"
+                                    Padding="{TemplateBinding Padding}">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Bd" Property="Opacity" Value="0.85"/>
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter TargetName="Bd" Property="Opacity" Value="0.65"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
 
         <Style x:Key="SettingsTabItem" TargetType="TabItem">
             <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
@@ -234,4 +271,5 @@
         </Style>
         </ResourceDictionary>
     </Application.Resources>
+
 </Application>

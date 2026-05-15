@@ -1112,14 +1112,25 @@ namespace EasySave.GUI.ViewModels
 
         private void OpenCurrentLogFile()
         {
-            string path = GetCurrentLogFilePath();
-            if (!File.Exists(path))
+            DateTime date = DateTime.TryParse(LogDateText, out DateTime parsed) ? parsed.Date : DateTime.Today;
+            string logDir = LogDirectoryResolver.Resolve(LogDirectoryText);
+
+            // Try the format selected in Settings first, then the other one.
+            string[] extensions = LogFormatIndex == 1
+                ? new[] { "xml", "json" }
+                : new[] { "json", "xml" };
+
+            foreach (string ext in extensions)
             {
-                StatusMessage = "No log file found for the selected date and format.";
-                return;
+                string candidate = Path.Combine(logDir, $"{date:yyyy-MM-dd}.{ext}");
+                if (File.Exists(candidate))
+                {
+                    Process.Start(new ProcessStartInfo(candidate) { UseShellExecute = true });
+                    return;
+                }
             }
 
-            Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
+            StatusMessage = $"No log file found for {date:yyyy-MM-dd} in: {logDir}";
         }
 
         private void ExportCurrentLogFile()
