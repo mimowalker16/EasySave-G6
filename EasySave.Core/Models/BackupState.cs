@@ -47,5 +47,9 @@ namespace EasySave.Core.Models
         /// <summary>Full target path of the file currently being copied.</summary>
         [JsonPropertyName("CurrentTargetFile")]
         public string CurrentTargetFile { get; set; } = string.Empty;
+
+        /// <summary>Human-readable reason explaining why the job is paused.</summary>
+        [JsonPropertyName("PauseReason")]
+        public string PauseReason { get; set; } = string.Empty;
     }
 }

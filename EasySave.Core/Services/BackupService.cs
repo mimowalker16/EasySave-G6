@@ -87,6 +87,7 @@ namespace EasySave.Core.Services
                 state.Progress = filesToCopy.Count == 0 ? 100 : 0;
                 state.CurrentSourceFile = string.Empty;
                 state.CurrentTargetFile = string.Empty;
+                state.PauseReason = string.Empty;
                 state.LastActionTimestamp = DateTime.Now.ToString("o");
                 PersistState(stateIndex, stateChanged);
 
@@ -101,6 +102,7 @@ namespace EasySave.Core.Services
 
                     long fileSize = SafeFileLength(sourceFile);
                     state.State = BackupStateType.Active;
+                    state.PauseReason = string.Empty;
                     state.CurrentSourceFile = sourceFile;
                     state.CurrentTargetFile = targetFile;
                     state.LastActionTimestamp = DateTime.Now.ToString("o");
@@ -178,6 +180,7 @@ namespace EasySave.Core.Services
                 state.RemainingSize = 0;
                 state.CurrentSourceFile = string.Empty;
                 state.CurrentTargetFile = string.Empty;
+                state.PauseReason = string.Empty;
                 state.LastActionTimestamp = DateTime.Now.ToString("o");
                 PersistState(stateIndex, stateChanged);
 
@@ -188,6 +191,7 @@ namespace EasySave.Core.Services
                 state.State = BackupStateType.Canceled;
                 state.CurrentSourceFile = string.Empty;
                 state.CurrentTargetFile = string.Empty;
+                state.PauseReason = string.Empty;
                 state.LastActionTimestamp = DateTime.Now.ToString("o");
                 PersistState(stateIndex, stateChanged);
                 throw;
@@ -206,13 +210,24 @@ namespace EasySave.Core.Services
             CancellationToken cancellationToken,
             Action<int, BackupState>? stateChanged)
         {
+            bool paused = false;
             while (_businessSoftware.IsRunning(settings.BusinessSoftwareName))
             {
                 cancellationToken.ThrowIfCancellationRequested();
+                paused = true;
                 state.State = BackupStateType.Paused;
+                state.PauseReason = $"Business software '{settings.BusinessSoftwareName}' is running.";
                 state.LastActionTimestamp = DateTime.Now.ToString("o");
                 PersistState(stateIndex, stateChanged);
                 Thread.Sleep(CoordinationSleepMs);
+            }
+
+            if (paused)
+            {
+                state.State = BackupStateType.Active;
+                state.PauseReason = string.Empty;
+                state.LastActionTimestamp = DateTime.Now.ToString("o");
+                PersistState(stateIndex, stateChanged);
             }
         }
 
@@ -230,6 +245,7 @@ namespace EasySave.Core.Services
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 state.State = BackupStateType.Paused;
+                state.PauseReason = "Waiting for priority files in another job.";
                 state.LastActionTimestamp = DateTime.Now.ToString("o");
                 PersistState(stateIndex, stateChanged);
                 Thread.Sleep(CoordinationSleepMs);
@@ -250,6 +266,7 @@ namespace EasySave.Core.Services
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 state.State = BackupStateType.Paused;
+                state.PauseReason = "Paused by user.";
                 state.LastActionTimestamp = DateTime.Now.ToString("o");
                 PersistState(stateIndex, stateChanged);
                 Thread.Sleep(CoordinationSleepMs);
@@ -294,7 +311,8 @@ namespace EasySave.Core.Services
             RemainingSize = state.RemainingSize,
             Progress = state.Progress,
             CurrentSourceFile = state.CurrentSourceFile,
-            CurrentTargetFile = state.CurrentTargetFile
+            CurrentTargetFile = state.CurrentTargetFile,
+            PauseReason = state.PauseReason
         };
 
         private static HashSet<string> BuildExtensionSet(IEnumerable<string> extensions)

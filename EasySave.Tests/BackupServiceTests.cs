@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading;
+using System.Threading.Tasks;
 using EasySave.Core.Models;
 using EasySave.Core.Services;
 using EasyLog;
@@ -33,7 +35,7 @@ namespace EasySave.Tests
 
         // ── Helpers ──────────────────────────────────────────────────────────
 
-        private BackupService BuildService(string? businessSoftwareName = null)
+        private BackupService BuildService(BusinessSoftwareService? businessSoftware = null)
         {
             var stateService = new StateService(_tempDir);
             var allStates = new System.Collections.Generic.List<BackupState>
@@ -41,7 +43,7 @@ namespace EasySave.Tests
 
             string logDir = Path.Combine(_tempDir, "Logs");
             var    logger           = new JsonLogger(logDir);
-            var businessSoftware = new BusinessSoftwareService();
+            businessSoftware ??= new BusinessSoftwareService();
 
             return new BackupService(stateService, allStates, logger, businessSoftware);
         }
@@ -153,6 +155,57 @@ namespace EasySave.Tests
             var svc = BuildService();
             bool ok = svc.Execute(MakeJob(), 0, settings);
             Assert.True(ok);
+        }
+
+        [Fact]
+        public async Task Execute_BusinessSoftwareStops_ResumesAutomatically()
+        {
+            File.WriteAllText(Path.Combine(_sourceDir, "file.txt"), "data");
+            var businessSoftware = new ToggleBusinessSoftwareService { Running = true };
+            var svc = BuildService(businessSoftware);
+            var settings = MakeSettings(businessSoftware: "DemoBusinessApp");
+            var observedStates = new List<BackupState>();
+            using var pausedSeen = new ManualResetEventSlim(false);
+
+            Task<bool> run = Task.Run(() => svc.Execute(
+                MakeJob(),
+                0,
+                settings,
+                stateChanged: (_, state) =>
+                {
+                    lock (observedStates)
+                    {
+                        observedStates.Add(state);
+                    }
+
+                    if (state.State == BackupStateType.Paused)
+                        pausedSeen.Set();
+                }));
+
+            Assert.True(pausedSeen.Wait(TimeSpan.FromSeconds(2)));
+            businessSoftware.Running = false;
+
+            bool ok = await run.WaitAsync(TimeSpan.FromSeconds(3));
+            Assert.True(ok);
+            Assert.True(File.Exists(Path.Combine(_targetDir, "file.txt")));
+
+            lock (observedStates)
+            {
+                Assert.Contains(observedStates, s =>
+                    s.State == BackupStateType.Paused
+                    && s.PauseReason.Contains("Business software", StringComparison.OrdinalIgnoreCase));
+                Assert.Contains(observedStates, s =>
+                    s.State == BackupStateType.Active
+                    && string.IsNullOrWhiteSpace(s.PauseReason));
+                Assert.Contains(observedStates, s => s.State == BackupStateType.End);
+            }
+        }
+
+        private sealed class ToggleBusinessSoftwareService : BusinessSoftwareService
+        {
+            public volatile bool Running;
+
+            public override bool IsRunning(string processName) => Running;
         }
 
     }

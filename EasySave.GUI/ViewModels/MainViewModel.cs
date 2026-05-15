@@ -1369,6 +1369,9 @@ namespace EasySave.GUI.ViewModels
 
         private static string BuildPauseReason(BackupState state)
         {
+            if (!string.IsNullOrWhiteSpace(state.PauseReason))
+                return state.PauseReason;
+
             if (string.IsNullOrWhiteSpace(state.CurrentSourceFile))
                 return "Waiting for coordination rule or pause request.";
 
