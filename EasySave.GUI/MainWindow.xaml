@@ -419,13 +419,22 @@
                 </StackPanel>
             </ScrollViewer>
 
-            <ScrollViewer Visibility="{Binding CurrentPage, Converter={x:Static local:PageConverter.Instance}, ConverterParameter=Logs}"
-                          VerticalScrollBarVisibility="Auto" Padding="28,24">
-                <StackPanel>
-                    <TextBlock Text="{DynamicResource LogsTitle}" FontSize="24" FontWeight="Bold"/>
-                    <TextBlock Text="{DynamicResource LogsSubtitle}" Foreground="{DynamicResource TextSecondary}" Margin="0,4,0,18"/>
+            <Border Visibility="{Binding CurrentPage, Converter={x:Static local:PageConverter.Instance}, ConverterParameter=Logs}"
+                    Padding="28,24">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
 
-                    <Border Style="{StaticResource CardBorder}" Margin="0,0,0,14">
+                    <StackPanel Grid.Row="0">
+                        <TextBlock Text="{DynamicResource LogsTitle}" FontSize="24" FontWeight="Bold"/>
+                        <TextBlock Text="{DynamicResource LogsSubtitle}" Foreground="{DynamicResource TextSecondary}" Margin="0,4,0,18"/>
+                    </StackPanel>
+
+                    <Border Grid.Row="1" Style="{StaticResource CardBorder}" Margin="0,0,0,14">
                         <WrapPanel VerticalAlignment="Center">
                             <StackPanel Margin="0,0,12,0">
                                 <TextBlock Text="{DynamicResource LogDate}" Style="{StaticResource FieldLabel}"/>
@@ -449,8 +458,20 @@
                         </WrapPanel>
                     </Border>
 
-                    <TextBlock Text="{DynamicResource NoLogsYet}" Foreground="{DynamicResource TextSecondary}" Visibility="{Binding HasNoLogs, Converter={StaticResource BoolToVisibility}}"/>
-                    <ListView ItemsSource="{Binding LogRows}" ItemContainerStyle="{StaticResource LogListItem}" Background="{DynamicResource BgCard}" BorderBrush="{DynamicResource BorderBrush}">
+                    <TextBlock Grid.Row="2"
+                               Text="{DynamicResource NoLogsYet}"
+                               Foreground="{DynamicResource TextSecondary}"
+                               Visibility="{Binding HasNoLogs, Converter={StaticResource BoolToVisibility}}"/>
+
+                    <ListView Grid.Row="2"
+                              ItemsSource="{Binding PagedLogRows}"
+                              ItemContainerStyle="{StaticResource LogListItem}"
+                              Background="{DynamicResource BgCard}"
+                              BorderBrush="{DynamicResource BorderBrush}"
+                              ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                              ScrollViewer.VerticalScrollBarVisibility="Auto"
+                              ScrollViewer.CanContentScroll="False"
+                              Visibility="{Binding HasLogs, Converter={StaticResource BoolToVisibility}}">
                         <ListView.View>
                             <GridView>
                                 <GridViewColumn Header="{DynamicResource Time}" DisplayMemberBinding="{Binding Time}" Width="80"/>
@@ -464,8 +485,23 @@
                             </GridView>
                         </ListView.View>
                     </ListView>
-                </StackPanel>
-            </ScrollViewer>
+
+                    <Border Grid.Row="3" Style="{StaticResource CardBorder}" Margin="0,14,0,0" Padding="12">
+                        <DockPanel LastChildFill="False">
+                            <TextBlock DockPanel.Dock="Left"
+                                       Text="{Binding LogPaginationText}"
+                                       Foreground="{DynamicResource TextSecondary}"
+                                       VerticalAlignment="Center"/>
+                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                <Button Content="&lt;&lt;" Style="{StaticResource SmallGhostBtn}" Command="{Binding FirstLogPageCommand}" Margin="0,0,6,0"/>
+                                <Button Content="&lt;" Style="{StaticResource SmallGhostBtn}" Command="{Binding PreviousLogPageCommand}" Margin="0,0,6,0"/>
+                                <Button Content="&gt;" Style="{StaticResource SmallGhostBtn}" Command="{Binding NextLogPageCommand}" Margin="0,0,6,0"/>
+                                <Button Content="&gt;&gt;" Style="{StaticResource SmallGhostBtn}" Command="{Binding LastLogPageCommand}"/>
+                            </StackPanel>
+                        </DockPanel>
+                    </Border>
+                </Grid>
+            </Border>
 
             <ScrollViewer Visibility="{Binding CurrentPage, Converter={x:Static local:PageConverter.Instance}, ConverterParameter=Settings}"
                           VerticalScrollBarVisibility="Auto" Padding="28,24">

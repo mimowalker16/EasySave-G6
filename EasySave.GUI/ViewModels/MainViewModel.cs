@@ -152,6 +152,7 @@ namespace EasySave.GUI.ViewModels
         private string _logDateText = DateTime.Today.ToString("yyyy-MM-dd");
         private string _logJobFilter = string.Empty;
         private int _logStatusFilterIndex;
+        private int _currentLogPage = 1;
         private string _newPriorityExtension = string.Empty;
         private string _newEncryptedExtension = string.Empty;
 
@@ -170,6 +171,7 @@ namespace EasySave.GUI.ViewModels
 
         public ObservableCollection<HealthWarning> HealthWarnings { get; } = new();
         public ObservableCollection<LogRow> LogRows { get; } = new();
+        public ObservableCollection<LogRow> PagedLogRows { get; } = new();
         public ObservableCollection<LogRow> RecentActivity { get; } = new();
         public ObservableCollection<string> PriorityExtensionChips { get; } = new();
         public ObservableCollection<string> EncryptedExtensionChips { get; } = new();
@@ -243,6 +245,29 @@ namespace EasySave.GUI.ViewModels
         public bool HasNoWarnings => HealthWarnings.Count == 0;
         public bool HasLogs => LogRows.Count > 0;
         public bool HasNoLogs => LogRows.Count == 0;
+        public int LogPageSize => 25;
+        public int CurrentLogPage
+        {
+            get => _currentLogPage;
+            private set
+            {
+                int newValue = Math.Max(1, Math.Min(value, TotalLogPages));
+                if (_currentLogPage == newValue) return;
+                _currentLogPage = newValue;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(LogPaginationText));
+                OnPropertyChanged(nameof(CanGoToPreviousLogPage));
+                OnPropertyChanged(nameof(CanGoToNextLogPage));
+                CommandManager.InvalidateRequerySuggested();
+            }
+        }
+
+        public int TotalLogPages => Math.Max(1, (int)Math.Ceiling((double)LogRows.Count / LogPageSize));
+        public bool CanGoToPreviousLogPage => CurrentLogPage > 1;
+        public bool CanGoToNextLogPage => CurrentLogPage < TotalLogPages;
+        public string LogPaginationText => HasLogs
+            ? $"Page {CurrentLogPage} / {TotalLogPages} - {LogRows.Count} row(s)"
+            : "Page 0 / 0 - 0 row(s)";
         public int TotalJobs => JobRows.Count;
         public int RunningJobs => JobRows.Count(j => j.Status == "Running" || j.Status == "Stopping");
         public int PausedJobs => JobRows.Count(j => j.Status == "Paused");
@@ -303,6 +328,10 @@ namespace EasySave.GUI.ViewModels
                 _languageIndex = value;
                 OnPropertyChanged();
                 ApplyLanguage(value == 1 ? "fr" : "en");
+                OnPropertyChanged(nameof(FormTitle));
+                if (_isFormDirty)
+                    ValidateJobForm();
+                RefreshDashboard();
             }
         }
 
@@ -436,6 +465,10 @@ namespace EasySave.GUI.ViewModels
         public ICommand BrowseTargetCommand { get; }
         public ICommand BrowseLogDirectoryCommand { get; }
         public ICommand RefreshLogsCommand { get; }
+        public ICommand FirstLogPageCommand { get; }
+        public ICommand PreviousLogPageCommand { get; }
+        public ICommand NextLogPageCommand { get; }
+        public ICommand LastLogPageCommand { get; }
         public ICommand OpenLogFileCommand { get; }
         public ICommand ExportLogFileCommand { get; }
         public ICommand TestCryptoSoftCommand { get; }
@@ -489,6 +522,10 @@ namespace EasySave.GUI.ViewModels
             BrowseTargetCommand = new RelayCommand(_ => BrowseFolder(path => FormTarget = path, FormTarget));
             BrowseLogDirectoryCommand = new RelayCommand(_ => BrowseFolder(path => LogDirectoryText = path, LogDirectoryText));
             RefreshLogsCommand = new RelayCommand(_ => RefreshLogs());
+            FirstLogPageCommand = new RelayCommand(_ => GoToLogPage(1), _ => CanGoToPreviousLogPage);
+            PreviousLogPageCommand = new RelayCommand(_ => GoToLogPage(CurrentLogPage - 1), _ => CanGoToPreviousLogPage);
+            NextLogPageCommand = new RelayCommand(_ => GoToLogPage(CurrentLogPage + 1), _ => CanGoToNextLogPage);
+            LastLogPageCommand = new RelayCommand(_ => GoToLogPage(TotalLogPages), _ => CanGoToNextLogPage);
             OpenLogFileCommand = new RelayCommand(_ => OpenCurrentLogFile());
             ExportLogFileCommand = new RelayCommand(_ => ExportCurrentLogFile());
             TestCryptoSoftCommand = new RelayCommand(_ => TestCryptoSoft());
@@ -505,7 +542,7 @@ namespace EasySave.GUI.ViewModels
             RefreshLogs();
             RefreshProcesses();
             StartNewJob();
-            StatusMessage = "Ready.";
+            StatusMessage = T("MsgReady");
         }
 
         private void SaveJob()
@@ -519,12 +556,12 @@ namespace EasySave.GUI.ViewModels
             if (IsEditing && SelectedJob != null)
             {
                 var (ok, err) = _core.EditJob(SelectedJob.Index, FormName, FormSource, FormTarget, type);
-                StatusMessage = ok ? "Job updated." : err;
+                StatusMessage = ok ? T("MsgJobUpdated") : TranslateCoreError(err);
             }
             else
             {
                 var (ok, err) = _core.CreateJob(FormName, FormSource, FormTarget, type);
-                StatusMessage = ok ? "Job created." : err;
+                StatusMessage = ok ? T("MsgJobCreated") : TranslateCoreError(err);
             }
 
             RefreshJobRows();
@@ -537,15 +574,15 @@ namespace EasySave.GUI.ViewModels
             if (row == null) return;
 
             MessageBoxResult confirm = System.Windows.MessageBox.Show(
-                $"Delete backup job '{row.Name}'?",
-                "Confirm delete",
+                F("MsgDeleteConfirm", row.Name),
+                T("MsgConfirmDeleteTitle"),
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Warning);
             if (confirm != MessageBoxResult.Yes)
                 return;
 
             var (ok, err) = _core.DeleteJob(row.Index);
-            StatusMessage = ok ? "Job deleted." : err;
+            StatusMessage = ok ? T("MsgJobDeleted") : TranslateCoreError(err);
             RefreshJobRows();
             StartNewJob();
         }
@@ -578,7 +615,7 @@ namespace EasySave.GUI.ViewModels
 
             row.Status = "Running";
             row.Progress = 0;
-            StatusMessage = $"Running {row.Name}...";
+            StatusMessage = F("MsgRunningJob", row.Name);
 
             try
             {
@@ -586,7 +623,7 @@ namespace EasySave.GUI.ViewModels
                     () => _core.ExecuteJob(row.Index, _runCts.Token));
 
                 row.Status = ok ? "Done" : (error == "cancelled" ? "Canceled" : $"Error: {error}");
-                StatusMessage = ok ? $"{row.Name} completed." : $"{row.Name}: {error}";
+                StatusMessage = ok ? F("MsgJobCompleted", row.Name) : $"{row.Name}: {TranslateCoreError(error)}";
                 if (ok) row.Progress = 100;
             }
             finally
@@ -611,7 +648,7 @@ namespace EasySave.GUI.ViewModels
                 row.Progress = 0;
             }
 
-            StatusMessage = "Running all jobs in parallel...";
+            StatusMessage = T("MsgRunningAll");
 
             try
             {
@@ -619,8 +656,8 @@ namespace EasySave.GUI.ViewModels
                     () => _core.ExecuteAllJobsParallel(_runCts.Token));
 
                 StatusMessage = ok
-                    ? "All jobs completed."
-                    : $"Completed with errors: {string.Join(", ", errors)}";
+                    ? T("MsgAllCompleted")
+                    : F("MsgCompletedWithErrors", string.Join(", ", errors.Select(TranslateCoreError)));
             }
             finally
             {
@@ -638,7 +675,7 @@ namespace EasySave.GUI.ViewModels
             if (_core.PauseJob(row.Index))
             {
                 row.Status = "Paused";
-                StatusMessage = $"{row.Name} paused.";
+                StatusMessage = F("MsgJobPaused", row.Name);
             }
         }
 
@@ -648,7 +685,7 @@ namespace EasySave.GUI.ViewModels
             if (_core.ResumeJob(row.Index))
             {
                 row.Status = "Running";
-                StatusMessage = $"{row.Name} resumed.";
+                StatusMessage = F("MsgJobResumed", row.Name);
             }
         }
 
@@ -658,7 +695,7 @@ namespace EasySave.GUI.ViewModels
             if (_core.StopJob(row.Index))
             {
                 row.Status = "Stopping";
-                StatusMessage = $"{row.Name} stop requested.";
+                StatusMessage = F("MsgJobStopRequested", row.Name);
             }
         }
 
@@ -667,7 +704,7 @@ namespace EasySave.GUI.ViewModels
             _core.PauseAllJobs();
             foreach (JobRow row in JobRows.Where(r => r.Status == "Running"))
                 row.Status = "Paused";
-            StatusMessage = "Pause requested for running jobs.";
+            StatusMessage = T("MsgPauseAllRequested");
         }
 
         private void ResumeAllJobs()
@@ -675,7 +712,7 @@ namespace EasySave.GUI.ViewModels
             _core.ResumeAllJobs();
             foreach (JobRow row in JobRows.Where(r => r.Status == "Paused"))
                 row.Status = "Running";
-            StatusMessage = "Resume requested for paused jobs.";
+            StatusMessage = T("MsgResumeAllRequested");
         }
 
         private void StopAllJobs()
@@ -683,7 +720,7 @@ namespace EasySave.GUI.ViewModels
             _core.StopAllJobs();
             foreach (JobRow row in JobRows.Where(r => r.Status == "Running" || r.Status == "Paused"))
                 row.Status = "Stopping";
-            StatusMessage = "Stop requested for running jobs.";
+            StatusMessage = T("MsgStopAllRequested");
         }
 
         private void SelectJob(JobRow? row)
@@ -749,7 +786,7 @@ namespace EasySave.GUI.ViewModels
             PriorityExtensionsText = string.Join(",", PriorityExtensionChips);
             EncryptedExtensionsText = string.Join(",", EncryptedExtensionChips);
             SettingsError = string.Empty;
-            StatusMessage = "Settings saved.";
+            StatusMessage = T("MsgSettingsSaved");
             RefreshDashboard();
             RefreshLogs();
         }
@@ -802,7 +839,7 @@ namespace EasySave.GUI.ViewModels
                     Status = "Idle",
                     PauseReason = sourceExists && targetExists
                         ? "-"
-                        : "Path check needed"
+                        : T("MsgPathCheckNeeded")
                 });
             }
             OnPropertyChanged(nameof(HasJobs));
@@ -824,19 +861,19 @@ namespace EasySave.GUI.ViewModels
 
             int selectedIndex = SelectedJob?.Index ?? 0;
             FormNameError = string.IsNullOrWhiteSpace(FormName)
-                ? "Job name is required."
+                ? T("MsgJobNameRequired")
                 : _core.Jobs.Select((job, i) => new { Job = job, Index = i + 1 })
                     .Any(item => item.Index != selectedIndex
                                  && item.Job.Name.Equals(FormName.Trim(), StringComparison.OrdinalIgnoreCase))
-                    ? "A job with this name already exists."
+                    ? T("MsgJobNameExists")
                     : string.Empty;
 
             FormSourceError = string.IsNullOrWhiteSpace(FormSource)
-                ? "Source folder is required."
+                ? T("MsgSourceRequired")
                 : string.Empty;
 
             FormTargetError = string.IsNullOrWhiteSpace(FormTarget)
-                ? "Target folder is required."
+                ? T("MsgTargetRequired")
                 : string.Empty;
 
             OnPropertyChanged(nameof(CanSaveJob));
@@ -858,13 +895,13 @@ namespace EasySave.GUI.ViewModels
             if (string.IsNullOrWhiteSpace(raw))
             {
                 thresholdKb = 0;
-                SettingsError = "Large file threshold is required. Use 0 to disable it.";
+                SettingsError = T("MsgLargeThresholdRequired");
                 return false;
             }
 
             if (!long.TryParse(raw, out thresholdKb) || thresholdKb < 0)
             {
-                SettingsError = "Large file threshold must be a whole number greater than or equal to zero.";
+                SettingsError = T("MsgLargeThresholdInvalid");
                 return false;
             }
 
@@ -907,7 +944,7 @@ namespace EasySave.GUI.ViewModels
             {
                 HealthWarnings.Add(new HealthWarning
                 {
-                    Title = "CryptoSoft unavailable",
+                    Title = T("MsgHealthCryptoUnavailable"),
                     Detail = cryptoSoftPath
                 });
             }
@@ -916,8 +953,8 @@ namespace EasySave.GUI.ViewModels
             {
                 HealthWarnings.Add(new HealthWarning
                 {
-                    Title = "Central logging endpoint missing",
-                    Detail = "Central logging is selected but no endpoint is configured."
+                    Title = T("MsgHealthCentralMissing"),
+                    Detail = T("MsgHealthCentralMissingDetail")
                 });
             }
 
@@ -925,8 +962,8 @@ namespace EasySave.GUI.ViewModels
             {
                 HealthWarnings.Add(new HealthWarning
                 {
-                    Title = "Business software detected",
-                    Detail = $"Backups pause while '{BusinessSoftware}' is running."
+                    Title = T("MsgHealthBusinessDetected"),
+                    Detail = F("MsgHealthBusinessDetectedDetail", BusinessSoftware)
                 });
             }
 
@@ -947,6 +984,7 @@ namespace EasySave.GUI.ViewModels
             try
             {
                 LogRows.Clear();
+                PagedLogRows.Clear();
                 RecentActivity.Clear();
 
                 DateTime date = DateTime.TryParse(LogDateText, out DateTime parsed)
@@ -966,16 +1004,52 @@ namespace EasySave.GUI.ViewModels
                 LogDateText = date.ToString("yyyy-MM-dd");
                 if (RecentActivity.FirstOrDefault(r => r.Result == "OK") is { } success)
                     LastSuccessfulBackup = success.Time;
+
+                CurrentLogPage = 1;
+                UpdatePagedLogRows();
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
-                StatusMessage = $"Log refresh skipped: {ex.Message}";
+                StatusMessage = F("MsgLogRefreshSkipped", ex.Message);
             }
             finally
             {
                 OnPropertyChanged(nameof(HasLogs));
                 OnPropertyChanged(nameof(HasNoLogs));
+                OnPropertyChanged(nameof(TotalLogPages));
+                OnPropertyChanged(nameof(LogPaginationText));
+                OnPropertyChanged(nameof(CanGoToPreviousLogPage));
+                OnPropertyChanged(nameof(CanGoToNextLogPage));
+                CommandManager.InvalidateRequerySuggested();
             }
+        }
+
+        private void GoToLogPage(int page)
+        {
+            CurrentLogPage = page;
+            UpdatePagedLogRows();
+        }
+
+        private void UpdatePagedLogRows()
+        {
+            int totalPages = TotalLogPages;
+            if (_currentLogPage > totalPages)
+                _currentLogPage = totalPages;
+
+            PagedLogRows.Clear();
+            foreach (LogRow row in LogRows
+                         .Skip((CurrentLogPage - 1) * LogPageSize)
+                         .Take(LogPageSize))
+            {
+                PagedLogRows.Add(row);
+            }
+
+            OnPropertyChanged(nameof(CurrentLogPage));
+            OnPropertyChanged(nameof(TotalLogPages));
+            OnPropertyChanged(nameof(LogPaginationText));
+            OnPropertyChanged(nameof(CanGoToPreviousLogPage));
+            OnPropertyChanged(nameof(CanGoToNextLogPage));
+            CommandManager.InvalidateRequerySuggested();
         }
 
         private IEnumerable<LogRow> LoadLogRows(string logDir, DateTime date)
@@ -1130,7 +1204,7 @@ namespace EasySave.GUI.ViewModels
                 }
             }
 
-            StatusMessage = $"No log file found for {date:yyyy-MM-dd} in: {logDir}";
+            StatusMessage = F("MsgNoLogForDateInDir", date.ToString("yyyy-MM-dd"), logDir);
         }
 
         private void ExportCurrentLogFile()
@@ -1138,7 +1212,7 @@ namespace EasySave.GUI.ViewModels
             string path = GetCurrentLogFilePath();
             if (!File.Exists(path))
             {
-                StatusMessage = "No log file found for the selected date and format.";
+                StatusMessage = T("MsgNoLogSelected");
                 return;
             }
 
@@ -1157,20 +1231,20 @@ namespace EasySave.GUI.ViewModels
                     string destinationPath = Path.GetFullPath(dialog.FileName);
                     if (string.Equals(sourcePath, destinationPath, StringComparison.OrdinalIgnoreCase))
                     {
-                        StatusMessage = "Export skipped: source and destination are the same file.";
+                        StatusMessage = T("MsgExportSameFile");
                         return;
                     }
 
                     CopyLogFile(sourcePath, destinationPath);
-                    StatusMessage = $"Log exported to {dialog.FileName}.";
+                    StatusMessage = F("MsgLogExported", dialog.FileName);
                 }
                 catch (IOException ex)
                 {
-                    StatusMessage = $"Export failed: {ex.Message}";
+                    StatusMessage = F("MsgExportFailed", ex.Message);
                 }
                 catch (UnauthorizedAccessException)
                 {
-                    StatusMessage = "Export failed: EasySave does not have permission to write to that location.";
+                    StatusMessage = T("MsgExportPermission");
                 }
             }
         }
@@ -1208,8 +1282,8 @@ namespace EasySave.GUI.ViewModels
         {
             string cryptoSoftPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "CryptoSoft.exe");
             StatusMessage = File.Exists(cryptoSoftPath)
-                ? "CryptoSoft is available."
-                : $"CryptoSoft not found: {cryptoSoftPath}";
+                ? T("MsgCryptoAvailable")
+                : F("MsgCryptoNotFound", cryptoSoftPath);
             RefreshDashboard();
         }
 
@@ -1217,7 +1291,7 @@ namespace EasySave.GUI.ViewModels
         {
             if (string.IsNullOrWhiteSpace(CentralLogEndpoint))
             {
-                StatusMessage = "Central endpoint is empty.";
+                StatusMessage = T("MsgCentralEndpointEmpty");
                 return;
             }
 
@@ -1243,12 +1317,12 @@ namespace EasySave.GUI.ViewModels
 
                 using HttpResponseMessage response = await client.PostAsJsonAsync(CentralLogEndpoint.Trim(), payload);
                 StatusMessage = response.IsSuccessStatusCode
-                    ? "Central logging endpoint answered successfully."
-                    : $"Central logging test failed: {(int)response.StatusCode}";
+                    ? T("MsgCentralOk")
+                    : F("MsgCentralFailedCode", (int)response.StatusCode);
             }
             catch (Exception ex)
             {
-                StatusMessage = $"Central logging test failed: {ex.Message}";
+                StatusMessage = F("MsgCentralFailedMessage", ex.Message);
             }
 
             RefreshDashboard();
@@ -1272,27 +1346,27 @@ namespace EasySave.GUI.ViewModels
             if (row == null) return;
             if (!Directory.Exists(row.Source))
             {
-                StatusMessage = $"{row.Name}: source folder is missing.";
+                StatusMessage = F("MsgSourceMissingShort", row.Name);
                 return;
             }
 
             int fileCount = Directory.GetFiles(row.Source, "*", SearchOption.AllDirectories).Length;
             long totalSize = Directory.GetFiles(row.Source, "*", SearchOption.AllDirectories)
                 .Sum(path => new FileInfo(path).Length);
-            StatusMessage = $"{row.Name} preview: {fileCount} file(s), {FormatBytes(totalSize)} to inspect/copy.";
+            StatusMessage = F("MsgPreviewSummary", row.Name, fileCount, FormatBytes(totalSize));
         }
 
         private bool ValidateRunJob(JobRow row)
         {
             if (!Directory.Exists(row.Source))
             {
-                StatusMessage = $"{row.Name}: source folder does not exist.";
+                StatusMessage = F("MsgSourceDoesNotExist", row.Name);
                 return false;
             }
 
             if (!TryEnsureDirectory(row.Target))
             {
-                StatusMessage = $"{row.Name}: target folder is not accessible.";
+                StatusMessage = F("MsgTargetNotAccessible", row.Name);
                 return false;
             }
 
@@ -1300,13 +1374,13 @@ namespace EasySave.GUI.ViewModels
             string target = NormalizeDirectoryPath(row.Target);
             if (string.Equals(source, target, StringComparison.OrdinalIgnoreCase))
             {
-                StatusMessage = $"{row.Name}: source and target cannot be the same folder.";
+                StatusMessage = F("MsgSourceTargetSame", row.Name);
                 return false;
             }
 
             if (target.StartsWith(source + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
             {
-                StatusMessage = $"{row.Name}: target cannot be inside the source folder.";
+                StatusMessage = F("MsgTargetInsideSource", row.Name);
                 return false;
             }
 
@@ -1383,15 +1457,15 @@ namespace EasySave.GUI.ViewModels
             return ext.StartsWith('.') ? ext : "." + ext;
         }
 
-        private static string BuildPauseReason(BackupState state)
+        private string BuildPauseReason(BackupState state)
         {
             if (!string.IsNullOrWhiteSpace(state.PauseReason))
                 return state.PauseReason;
 
             if (string.IsNullOrWhiteSpace(state.CurrentSourceFile))
-                return "Waiting for coordination rule or pause request.";
+                return T("MsgPauseWaiting");
 
-            return $"Paused before/after {Path.GetFileName(state.CurrentSourceFile)}";
+            return F("MsgPauseBeforeAfter", Path.GetFileName(state.CurrentSourceFile));
         }
 
         private static string FormatBytes(long bytes)
@@ -1475,6 +1549,22 @@ namespace EasySave.GUI.ViewModels
 
         private static string T(string key)
             => System.Windows.Application.Current.TryFindResource(key)?.ToString() ?? key;
+
+        private static string F(string key, params object[] args)
+            => string.Format(T(key), args);
+
+        private static string TranslateCoreError(string error)
+            => error switch
+            {
+                "max_jobs" => T("MsgCoreMaxJobs"),
+                "name_empty" => T("MsgJobNameRequired"),
+                "name_exists" => T("MsgJobNameExists"),
+                "invalid_index" => T("MsgCoreInvalidIndex"),
+                "execution_busy" => T("MsgCoreExecutionBusy"),
+                "cancelled" => T("MsgCoreCancelled"),
+                "errors" => T("MsgCoreErrors"),
+                _ => error
+            };
 
         public event PropertyChangedEventHandler? PropertyChanged;
         private void OnPropertyChanged([CallerMemberName] string? name = null)
